@@ -1,71 +1,121 @@
 {{ define "main" }}
+{{ $cv := site.Data.cv }}
+<div class="progress" aria-hidden="true"><i></i></div>
+
 <section class="hero">
   <div class="hero-text">
-    <p class="kicker">~/lyra-planet</p>
-    <h1>Lyra</h1>
-    <p class="lede">I build generative models and the agents around them.</p>
-    <dl class="now">
-      <div><dt>now</dt><dd>Multimodal LLM Intern · Foundation Model Center, Kling Team, Kuaishou Technology</dd></div>
-      <div><dt>study</dt><dd>M.Eng. in AI · Southeast University (SEU), Suzhou · PALM Lab</dd></div>
-      <div><dt>paper</dt><dd>BlendEmo · FG 2026, first author</dd></div>
-    </dl>
-    <p class="cta">
-      <a class="btn" href="{{ (site.GetPage "/cv").RelPermalink }}">Read the CV</a>
+    <p class="kicker rise" style="--d:0">~/lyra-planet · {{ $cv.name }} <span lang="zh">{{ $cv.name_zh }}</span></p>
+    <h1 class="title" aria-label="Lyra">{{ range $i, $c := split "Lyra" "" }}<span style="--d:{{ $i }}">{{ $c }}</span>{{ end }}</h1>
+    <p class="lede rise" style="--d:3">I build <span class="rotator" data-words='["generative models","multimodal LLMs","agent harnesses","evaluation loops","video pipelines"]'>generative models</span><span class="caret" aria-hidden="true"></span></p>
+    <ul class="badges">
+      <li class="rise" style="--d:4"><b>Multimodal LLM Intern</b><span>Kling Team · Kuaishou Technology</span></li>
+      <li class="rise" style="--d:5"><b>M.Eng. in AI</b><span>Southeast University · PALM Lab</span></li>
+      <li class="rise" style="--d:6"><b>FG 2026</b><span>first-author paper</span></li>
+    </ul>
+    <p class="cta rise" style="--d:7">
+      <a class="btn" href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV</a>
       <a class="btn ghost" href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a>
       <a class="btn ghost" href="https://github.com/{{ site.Params.github }}">GitHub ↗</a>
       <a class="btn ghost" href="{{ site.Params.scholar }}">Scholar ↗</a>
     </p>
   </div>
-  <figure class="hero-art">
+  <figure class="hero-art rise" style="--d:2">
     <img class="only-light" src="{{ "img/planet-light.svg" | relURL }}" width="307" height="179" alt="A pixel-art planet with a ring and a moon, repeatedly denoised out of random noise">
     <img class="only-dark" src="{{ "img/planet-dark.svg" | relURL }}" width="307" height="179" alt="">
   </figure>
 </section>
 
-{{ with .Content }}<section class="about prose">{{ . }}</section>{{ end }}
-
-<section>
-  <h2 class="label">// focus</h2>
-  <div class="focus">
-    {{ range site.Data.focus }}
-    <div class="tile">{{ partial "pixelicon.html" .icon }}<div><h3>{{ .title }}</h3><p>{{ .note }}</p></div></div>
-    {{ end }}
+<section id="numbers" class="band rise" style="--d:8">
+  <div class="band-head">
+    <p><span class="live" aria-hidden="true"></span>lyra@planet ~ % <b>claude usage --daily</b></p>
+    <p class="band-note">live from my session logs · <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count</a></p>
   </div>
-</section>
-
-<section>
-  <h2 class="label">// selected work</h2>
-  <div class="cards">
-    {{ range site.Data.projects }}
-    {{ $inner := printf `<div class="card-head">%s<div><h3>%s</h3><p class="repo">%s</p></div></div><p>%s</p>` (partial "pixelicon.html" .icon) .name .sub .desc }}
-    {{ $chips := "" }}{{ with .lang }}{{ $chips = printf `<span class="lang">%s</span>` . }}{{ end }}
-    {{ range .topics }}{{ $chips = printf `%s<span class="chip">%s</span>` $chips . }}{{ end }}
-    {{ if .url }}<a class="card" href="{{ .url }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></a>
-    {{ else }}<div class="card static">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></div>{{ end }}
-    {{ end }}
-  </div>
-</section>
-
-<section>
-  <h2 class="label">// writing</h2>
-  <ul class="postlist">
-    {{ range first 3 (where site.RegularPages "Section" "posts") }}
-    <li><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 02, 2006" }}</time>
-      <div><a href="{{ .RelPermalink }}">{{ .Title }}</a><p>{{ .Params.lede | default .Summary }}</p></div></li>
-    {{ end }}
-  </ul>
-  <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a></p>
-</section>
-
-<section id="numbers">
-  <h2 class="label">// ai-native, in numbers</h2>
   <div class="usage" data-src="{{ site.Params.usageJSON }}">
     <div class="kpis"></div>
-    <figure class="chart" aria-label="Claude Code tokens per day, last 30 days"><svg role="img"></svg><div class="tip" hidden></div></figure>
+    <figure class="chart" aria-label="Claude Code tokens per day"><svg role="img"></svg><div class="tip" hidden></div></figure>
     <details class="table"><summary>View as table</summary><div></div></details>
-    <noscript><p>The live chart needs JavaScript. The numbers are in <a href="https://github.com/{{ site.Params.github }}/{{ site.Params.github }}/blob/main/data/claude-code-usage.json">this JSON file</a>.</p></noscript>
-    <p class="note">Counted from my local Claude Code session logs, each API response once; only daily totals leave the machine.
-      Method: <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count them</a>.</p>
+    <noscript><p class="note">The live chart needs JavaScript; the numbers are in <a href="https://github.com/{{ site.Params.github }}/{{ site.Params.github }}/blob/main/data/claude-code-usage.json">this JSON file</a>.</p></noscript>
   </div>
+</section>
+
+<section class="reveal">
+  <h2 class="label">// at a glance</h2>
+  <div class="highlights">
+    {{ range $i, $h := $cv.highlights }}
+    <div class="hl stagger" style="--i:{{ $i }}">
+      {{ if $h.text }}<b>{{ $h.text }}</b>{{ else }}<b data-count="{{ $h.value }}" data-dec="{{ $h.decimals | default 0 }}" data-suffix="{{ $h.suffix }}">{{ $h.value }}{{ $h.suffix }}</b>{{ end }}
+      <span>{{ $h.label }}</span><small>{{ $h.note }}</small>
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="reveal">
+  <h2 class="label">// journey</h2>
+  <ol class="timeline">
+    {{ range $i, $t := $cv.timeline }}
+    <li class="stagger k-{{ $t.kind }}" style="--i:{{ $i }}"><time>{{ $t.when }}</time><h3>{{ $t.title }}</h3><p>{{ $t.note }}</p></li>
+    {{ end }}
+  </ol>
+</section>
+
+<section class="reveal">
+  <h2 class="label">// selected work</h2>
+  <div class="cards">
+    {{ range $i, $p := site.Data.projects }}
+    {{ $inner := printf `<div class="card-head">%s<div><h3>%s</h3><p class="repo">%s</p></div></div><p>%s</p>` (partial "pixelicon.html" $p.icon) $p.name $p.sub $p.desc }}
+    {{ $chips := "" }}{{ with $p.lang }}{{ $chips = printf `<span class="lang">%s</span>` . }}{{ end }}
+    {{ range $p.topics }}{{ $chips = printf `%s<span class="chip">%s</span>` $chips . }}{{ end }}
+    {{ if $p.url }}<a class="card spot stagger" style="--i:{{ $i }}" href="{{ $p.url }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></a>
+    {{ else }}<div class="card spot static stagger" style="--i:{{ $i }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></div>{{ end }}
+    {{ end }}
+  </div>
+</section>
+
+<section class="split reveal">
+  <div>
+    <h2 class="label">// publication</h2>
+    {{ range $cv.publications }}
+    <article class="paper stagger" style="--i:0">
+      <p class="venue">{{ .short | default .venue }}</p>
+      <h3>{{ .title }}</h3>
+      <p class="authors">{{ range $i, $a := .authors }}{{ if $i }}, {{ end }}{{ if eq $a $cv.name }}<b>{{ $a }}</b>{{ else }}{{ $a }}{{ end }}{{ end }}</p>
+      <p class="links">{{ range .links }}<a href="{{ .url }}">{{ .label }} ↗</a>{{ end }}</p>
+    </article>
+    {{ end }}
+    {{ with $cv.research_note }}<p class="aside stagger" style="--i:1">{{ . }}</p>{{ end }}
+  </div>
+  <div>
+    <h2 class="label">// open source</h2>
+    <ul class="oss">
+      {{ range $i, $o := $cv.open_source }}
+      <li class="stagger" style="--i:{{ $i }}"><time>{{ $o.when }}</time><a href="{{ $o.url }}">{{ $o.title }}</a>{{ with $o.sub }}<span>{{ . }}</span>{{ end }}</li>
+      {{ end }}
+    </ul>
+  </div>
+</section>
+
+<section class="reveal">
+  <h2 class="label">// honors</h2>
+  <div class="honor-grid">
+    {{ range $i, $h := $cv.honors }}
+    <div class="honor stagger" style="--i:{{ $i }}">{{ partial "pixelicon.html" "medal" }}<p>{{ $h }}</p></div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="marquee reveal" aria-label="Stack">
+  <div class="track">{{ range (slice 1 2) }}<div class="row">{{ range $cv.stack }}<span>{{ . }}</span>{{ end }}</div>{{ end }}</div>
+</section>
+
+<section class="reveal">
+  <h2 class="label">// writing</h2>
+  <ul class="postlist">
+    {{ range $i, $p := first 3 (where site.RegularPages "Section" "posts") }}
+    <li class="stagger" style="--i:{{ $i }}"><time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "Jan 02, 2006" }}</time>
+      <div><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a><p>{{ $p.Params.lede | default $p.Summary }}</p></div></li>
+    {{ end }}
+  </ul>
+  <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a> &nbsp; <a href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV →</a></p>
 </section>
 {{ end }}

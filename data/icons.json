@@ -71,6 +71,18 @@
   "..........",
   ".........."
  ],
+ "medal": [
+  "..bb..bb..",
+  "...bbbb...",
+  "....bb....",
+  "...cccc...",
+  "..cCCCCc..",
+  ".cCcwwcCc.",
+  ".cCwcCwCc.",
+  ".cCcwwcCc.",
+  "..cCCCCc..",
+  "...cccc..."
+ ],
  "frame": [
   "CCCCCCCCCC",
   "CppppppcpC",

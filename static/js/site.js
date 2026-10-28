@@ -1,4 +1,4 @@
-// lyra-planet.github.io: theme toggle, CV print button, live Claude Code usage chart.
+// lyra-planet.github.io: theme toggle, CV print button, home-page motion, live Claude Code usage chart.
 (() => {
   const root = document.documentElement;
   const dark = () => (root.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
@@ -9,6 +9,68 @@
     try { localStorage.setItem("theme", next); } catch (e) { /* private mode: ignore */ }
   });
   document.querySelector(".print")?.addEventListener("click", () => window.print());
+
+  // ---- home motion; with reduced motion everything lands on its final state at once ----
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ease = (t) => 1 - (1 - t) ** 3;
+  const tween = (ms, step) => {
+    if (calm) return step(1);
+    const t0 = performance.now();
+    const tick = (now) => { const t = Math.min(1, (now - t0) / ms); step(ease(t)); if (t < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  };
+
+  // sections fade in once; callbacks registered with onReveal run at that moment
+  const io = "IntersectionObserver" in window && new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add("in");
+    io.unobserve(e.target);
+    (e.target._cbs || []).forEach((f) => f());
+  }), { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+  const onReveal = (el, f) => {
+    const sec = el.closest(".reveal");
+    if (!sec || !io || sec.classList.contains("in")) return f();
+    (sec._cbs ||= []).push(f);
+  };
+  document.querySelectorAll(".reveal").forEach((el) => io ? io.observe(el) : el.classList.add("in"));
+
+  document.querySelectorAll("[data-count]").forEach((el) => {
+    const end = +el.dataset.count, dec = +el.dataset.dec || 0, suf = el.dataset.suffix || "";
+    onReveal(el, () => tween(1400, (k) => { el.textContent = (end * k).toFixed(dec) + suf; }));
+  });
+
+  // typewriter: delete the current phrase, type the next one
+  const rot = document.querySelector(".rotator");
+  if (rot) {
+    const words = JSON.parse(rot.dataset.words);
+    let w = 0;
+    const swap = () => {
+      const next = words[(w = (w + 1) % words.length)];
+      if (calm) { rot.textContent = next; return setTimeout(swap, 3000); }
+      const out = setInterval(() => {
+        rot.textContent = rot.textContent.slice(0, -1);
+        if (rot.textContent) return;
+        clearInterval(out);
+        let i = 0;
+        const type = setInterval(() => { rot.textContent = next.slice(0, ++i); if (i === next.length) { clearInterval(type); setTimeout(swap, 2400); } }, 70);
+      }, 35);
+    };
+    setTimeout(swap, 2600);
+  }
+
+  document.querySelectorAll(".spot").forEach((c) => c.addEventListener("pointermove", (e) => {
+    const r = c.getBoundingClientRect();
+    c.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    c.style.setProperty("--my", `${e.clientY - r.top}px`);
+  }));
+
+  const bar = document.querySelector(".progress");
+  if (bar) {
+    let queued = false;
+    const draw = () => { queued = false; const h = document.documentElement; bar.style.setProperty("--p", h.scrollTop / Math.max(1, h.scrollHeight - h.clientHeight)); };
+    addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(draw); } }, { passive: true });
+    draw();
+  }
 
   const box = document.querySelector(".usage");
   if (!box) return;
@@ -30,13 +92,16 @@
   function kpis(u) {
     const t = u.totals;
     const cells = [
-      ["hero-kpi", fmt(t.total), `tokens since ${label(u.days[0].date)}`],
-      ["", fmt(t.output), "output tokens"],
-      ["", fmt(t.requests, 1), "API calls"],
-      ["", t.sessions.toLocaleString("en-US"), "sessions"],
-      ["", `${(100 * t.cache_read / t.total).toFixed(1)}%`, "served from cache"],
+      ["hero-kpi", t.total, (v) => fmt(v), `tokens since ${label(u.days[0].date)}`],
+      ["", t.output, (v) => fmt(v), "output tokens"],
+      ["", t.requests, (v) => fmt(v, 1), "API calls"],
+      ["", t.sessions, (v) => Math.round(v).toLocaleString("en-US"), "sessions"],
+      ["", 100 * t.cache_read / t.total, (v) => `${v.toFixed(1)}%`, "served from cache"],
     ];
-    box.querySelector(".kpis").innerHTML = cells.map(([c, v, l]) => `<div class="kpi ${c}"><b>${v}</b><span>${l}</span></div>`).join("") ;
+    const el = box.querySelector(".kpis");
+    el.innerHTML = cells.map(([c, v, f, l]) => `<div class="kpi ${c}"><b>${f(v)}</b><span>${l}</span></div>`).join("");
+    const bs = el.querySelectorAll("b");
+    onReveal(el, () => tween(1600, (k) => cells.forEach(([, v, f], i) => { bs[i].textContent = f(v * k); })));
   }
 
   function table(u) {
@@ -52,12 +117,15 @@
     return Array.from({ length: Math.ceil(v / step) + 1 }, (_, i) => i * step);
   }
 
+  let drawn = 0;
   function chart(u) {
     const svg = box.querySelector(".chart svg"), tip = box.querySelector(".tip");
     const W = svg.clientWidth || 800, H = 220, L = 44, B = 24, T = 18;
     const byDate = Object.fromEntries(u.days.map((d) => [d.date, d]));
+    // window: from the first logged day to today, at least 14 and at most 30 days
     const end = new Date(u.generated_at.slice(0, 10) + "T00:00:00Z");
-    const days = Array.from({ length: 30 }, (_, i) => { const d = new Date(end); d.setUTCDate(d.getUTCDate() - 29 + i); return iso(d); });
+    const n = Math.min(30, Math.max(14, Math.round((end - new Date(u.days[0].date + "T00:00:00Z")) / 864e5) + 2));
+    const days = Array.from({ length: n }, (_, i) => { const d = new Date(end); d.setUTCDate(d.getUTCDate() - n + 1 + i); return iso(d); });
     const vals = days.map((d) => byDate[d]?.total || 0);
     const ticks = niceTicks(Math.max(...vals, 1)), top = ticks[ticks.length - 1];
     const ch = H - B - T, slot = (W - L) / days.length, y = (v) => T + ch - (ch * v) / top;
@@ -68,17 +136,18 @@
     }
     vals.forEach((v, i) => {
       if (!v) return;
-      const x = L + i * slot + 1, w = slot - 2, h = Math.max(2, (ch * v) / top), r = Math.min(4, w / 2, h);
-      s += `<path class="bar" d="M${x},${y(0)} V${y(0) - h + r} Q${x},${y(0) - h} ${x + r},${y(0) - h} H${x + w - r} Q${x + w},${y(0) - h} ${x + w},${y(0) - h + r} V${y(0)} Z"/>`;
+      const w = Math.min(slot - 4, 30), x = L + i * slot + (slot - w) / 2, h = Math.max(2, (ch * v) / top), r = Math.min(4, w / 2, h);
+      s += `<path class="bar" style="--i:${i}" d="M${x},${y(0)} V${y(0) - h + r} Q${x},${y(0) - h} ${x + r},${y(0) - h} H${x + w - r} Q${x + w},${y(0) - h} ${x + w},${y(0) - h + r} V${y(0)} Z"/>`;
     });
     const p = vals.indexOf(Math.max(...vals));
     if (vals[p]) s += `<text class="peak" x="${L + p * slot + slot / 2}" y="${y(vals[p]) - 7}" text-anchor="middle">${fmt(vals[p])}</text>`;
-    for (const i of [0, 14, 29]) s += `<text class="tick" x="${L + i * slot + slot / 2}" y="${H - 4}" text-anchor="middle">${label(days[i])}</text>`;
+    for (const i of [0, n >> 1, n - 1]) s += `<text class="tick" x="${L + i * slot + slot / 2}" y="${H - 4}" text-anchor="middle">${label(days[i])}</text>`;
     s += `<line class="cross" x1="0" x2="0" y1="${T}" y2="${y(0)}" visibility="hidden"/>`;
     days.forEach((d, i) => {
       s += `<rect class="hit" data-i="${i}" x="${L + i * slot}" y="${T}" width="${slot}" height="${ch}" tabindex="0" aria-label="${label(d)}: ${fmt(vals[i])} tokens"/>`;
     });
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.classList.toggle("grow", !drawn++);   // bars grow only on the first draw, not on every resize
     svg.innerHTML = s;
 
     const cross = svg.querySelector(".cross");

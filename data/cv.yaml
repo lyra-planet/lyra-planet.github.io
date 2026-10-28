@@ -34,6 +34,7 @@ publications:
   - title: "BlendEmo: Structured Set Prediction and Pair-Conditioned Ratio Modeling for Blended Emotion Recognition"
     authors: ["Kai Cheng", "Xiaohaoyang Lei", "Ruiqi Wang", "Haojie Li", "Cunjian Chen"]
     venue: "IEEE International Conference on Automatic Face and Gesture Recognition (FG), 2026"
+    short: "IEEE FG 2026"
     links:
       - { label: IEEE Xplore, url: "https://ieeexplore.ieee.org/abstract/document/11556928/" }
       - { label: DOI, url: "https://doi.org/10.1109/fg67764.2026.11556928" }
@@ -87,3 +88,18 @@ skills:
   - { area: Agents & LLMs, items: "ReAct, RAG, context engineering, MCP, agent skills, multi-agent collaboration, memory and retrieval, structured output, agent evaluation; LangChain multi-agent systems, prompt engineering; familiar with agentic RL, RLHF, DPO and GRPO" }
   - { area: Models, items: "PyTorch, Transformers, Hugging Face; training, LoRA and parameter-efficient fine-tuning, data processing, checkpoints and safetensors" }
   - { area: Engineering, items: "Python, TypeScript/JavaScript; Linux, shell, React, Vue 3, Next.js, REST APIs, CLIs, VS Code extensions, Git" }
+
+# ---- 首页用的概览（事实都来自上面各节，这里只是挑出来排版） ----
+highlights:
+  - { value: 3.82, decimals: 2, suffix: "/4.0", label: "undergrad GPA", note: "top 5% · Tiangong University" }
+  - { value: 4, label: "national awards", note: "Lanqiao Cup ×2 · RAICOM · computer design contest" }
+  - { text: "FG '26", label: "first-author paper", note: "BlendEmo · blended emotion recognition" }
+  - { value: 92.5, decimals: 1, suffix: "%", label: "PR review accuracy", note: "Patchloom · 100 controlled PR diffs" }
+timeline:
+  - { when: "2021", title: "Tiangong University", note: "B.Eng. in Computer Science · GPA 3.82, top 5%", kind: edu }
+  - { when: "2023", title: "Tongyuan", note: "Full-stack intern · Syslab front end, VS Code extension", kind: work }
+  - { when: "2025", title: "Southeast University", note: "M.Eng. in AI · PALM Lab, Suzhou", kind: edu }
+  - { when: "2025", title: "Open source", note: "OSPP · OpenTiny TinyVue; Tencent Rhino-Bird outstanding student", kind: oss }
+  - { when: "2026", title: "BlendEmo at FG 2026", note: "First-author paper, IEEE FG", kind: paper }
+  - { when: "2026", title: "Kling Team, Kuaishou", note: "Multimodal LLM intern · Foundation Model Center", kind: work }
+stack: [PyTorch, Transformers, Hugging Face, LoRA, diffusion, ComfyUI, vision-language models, MCP, agent skills, LangChain, ReAct, RAG, context engineering, agentic RL, GRPO, DPO, Claude Code, Python, TypeScript, React, Vue 3, Next.js]
