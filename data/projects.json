@@ -2,45 +2,79 @@
  {
   "name": "LyHarness",
   "icon": "terminal",
-  "desc": "Local, interactive coding-agent harness: workspace tools, tasks, worktrees, team coordination, MCP and permissions around the model's own decisions.",
   "topics": [
    "agents",
    "coding-agent",
    "mcp"
   ],
-  "url": "https://github.com/lyra-planet/LyHarness"
+  "desc": "Modular coding-agent runtime: tools, worktree isolation, skills, MCP, persistent tasks and memory, resumable workflows.",
+  "url": "https://github.com/lyra-planet/LyHarness",
+  "sub": "lyra-planet/LyHarness",
+  "lang": "Python"
+ },
+ {
+  "name": "Patchloom",
+  "icon": "shield",
+  "topics": [
+   "multi-agent",
+   "code-review",
+   "self-evolving"
+  ],
+  "url": null,
+  "sub": "private repo",
+  "lang": "",
+  "desc": "Multi-agent PR review and auto-fix with a self-evolving orchestrator; 92.5% review accuracy on 100 controlled PR diffs."
+ },
+ {
+  "name": "TencentDB-Agent-Memory",
+  "icon": "db",
+  "topics": [
+   "agent-memory",
+   "retrieval",
+   "open-source"
+  ],
+  "lang": "TypeScript",
+  "url": "https://github.com/TencentCloud/TencentDB-Agent-Memory/pull/1281",
+  "sub": "TencentCloud/TencentDB-Agent-Memory · PR #1281",
+  "desc": "Dynamic skill-queue injection for an agent memory proxy: three BM25-based strategies, 91% task success in a 100-task eval."
  },
  {
   "name": "BlendEmo",
   "icon": "heart",
-  "desc": "Code for our BlendEmo paper: blended emotion recognition on BLEMORE via structured set prediction and pair-conditioned ratio modeling.",
   "topics": [
    "multimodal",
    "emotion",
    "pytorch"
   ],
-  "url": "https://github.com/lyra-planet/BlendEmo"
+  "desc": "Code for our FG 2026 paper: blended emotion recognition via structured set prediction and pair-conditioned ratios.",
+  "url": "https://github.com/lyra-planet/BlendEmo",
+  "sub": "lyra-planet/BlendEmo",
+  "lang": "Python"
  },
  {
   "name": "GAL-Dreamer",
   "icon": "book",
-  "desc": "Multi-agent system that turns one conversation into a complete galgame: world-building, characters, story outline and consistency checks.",
   "topics": [
    "multi-agent",
    "langchain",
    "llm"
   ],
-  "url": "https://github.com/lyra-planet/GAL-Dreamer"
+  "desc": "Multi-agent system that turns one conversation into a complete galgame: world-building, characters, story outline and consistency checks.",
+  "url": "https://github.com/lyra-planet/GAL-Dreamer",
+  "sub": "lyra-planet/GAL-Dreamer",
+  "lang": "Python"
  },
  {
   "name": "Pipline",
   "icon": "film",
-  "desc": "Multi-stage video editing with MiniMax-H3 through a hosted API or a local ComfyUI workflow, with retries and failure repair.",
   "topics": [
    "video-gen",
    "comfyui",
    "pipeline"
   ],
-  "url": "https://github.com/lyra-planet/Pipline"
+  "desc": "Multi-stage video editing with MiniMax-H3 through a hosted API or a local ComfyUI workflow, with retries and failure repair.",
+  "url": "https://github.com/lyra-planet/Pipline",
+  "sub": "lyra-planet/Pipline",
+  "lang": "Python"
  }
 ]

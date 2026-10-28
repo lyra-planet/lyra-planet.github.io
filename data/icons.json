@@ -47,6 +47,30 @@
   "kkkkkkkkkk",
   ".........."
  ],
+ "shield": [
+  ".CCCCCCCC.",
+  ".CccccccC.",
+  ".CcccccwC.",
+  ".CccccwcC.",
+  ".CwccwccC.",
+  ".CcwwcccC.",
+  "..CccccC..",
+  "...CccC...",
+  "....CC....",
+  ".........."
+ ],
+ "db": [
+  "..bbbbbb..",
+  ".bBBBBBBb.",
+  ".bbbbbbbb.",
+  ".bBBBBBBb.",
+  ".bbbbbbbb.",
+  ".bBBBBBBb.",
+  ".bbbccbbb.",
+  "..bbbbbb..",
+  "..........",
+  ".........."
+ ],
  "frame": [
   "CCCCCCCCCC",
   "CppppppcpC",

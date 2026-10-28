@@ -1,0 +1,6 @@
+{{- /* 简历里的一条：时间 | 标题（有 url 就是链接）/ 副标题 / 要点 */ -}}
+<div class="entry"><div class="when">{{ .when }}</div><div>
+  <h3>{{ with .url }}<a href="{{ . }}">{{ $.title }}</a>{{ else }}{{ .title }}{{ end }}</h3>
+  {{ with .sub }}<p class="sub">{{ . }}</p>{{ end }}
+  {{ with .points }}<ul>{{ range . }}<li>{{ . }}</li>{{ end }}</ul>{{ end }}
+</div></div>

@@ -1,25 +1,89 @@
-# 只写确认过的事实；不知道的（年份、专业、发表处）宁可空着
-name: Lyra
+# 来源：用户 10-28 给的简历 PDF + 当天的内部资料截图（部门名）；论文作者 / 会议用 Crossref 核过；PR 链接在 GitHub 上核过
+# 手机号不上公开站点
+name: Kai Cheng
+name_zh: 程锴
+handle: Lyra
 headline: AI-native builder of generative and agentic systems
-links:
+contacts:
+  - { label: "1170158548@qq.com", url: "mailto:1170158548@qq.com" }
+  - { label: Google Scholar, url: "https://scholar.google.com/citations?user=Sa6Mj0kAAAAJ" }
   - { label: GitHub, url: "https://github.com/lyra-planet" }
-experience:
-  - org: Kling Team, Kuaishou Technology
-    unit: Foundation Model Center · Foundation Model & Agent Algorithms Department
-    role: Intern
-    when: Oct 2026 – present
-    points:
-      - Evaluation pipelines and agentic workflows for video generation models.
+
 education:
-  - school: Southeast University (SEU)
-    detail: M.S. student · Nanjing
-  - school: Tiangong University (TGU)
-    detail: Undergraduate
+  - title: Southeast University (SEU)
+    sub: "M.Eng. in Artificial Intelligence (professional master's) · Suzhou Joint Graduate School · PALM Lab"
+    when: Jul 2025 – Jun 2028
+    points: ["Member of PALM Lab, working on agents, vision-language models and generative AI."]
+  - title: Tiangong University (TGU)
+    sub: "B.Eng. in Computer Science and Technology · School of Computer Science and Technology"
+    when: Sep 2021 – Jun 2025
+    points: ["GPA 3.82/4.0 (top 5%); President's Scholarship and Sangma Scholarship; CET-6 496."]
+
+experience:
+  - title: Intern · Kling Team, Kuaishou Technology
+    sub: Foundation Model Center · Foundation Model & Agent Algorithms Department
+    when: Oct 2026 – present
+    points: ["Evaluation pipelines and agentic workflows for video generation models."]
+  - title: Full-stack engineering intern · Suzhou Tongyuan Software & Control Technology
+    when: Jul 2023 – Sep 2023
+    points:
+      - "Built core web front-end modules for Syslab, a next-generation scientific computing environment, using list virtualization to render large datasets."
+      - "Maintained a Julia socket communication library and built a VS Code extension with language-service integration."
+
 publications:
   - title: "BlendEmo: Structured Set Prediction and Pair-Conditioned Ratio Modeling for Blended Emotion Recognition"
-    links: [{ label: code, url: "https://github.com/lyra-planet/BlendEmo" }]
+    authors: ["Kai Cheng", "Xiaohaoyang Lei", "Ruiqi Wang", "Haojie Li", "Cunjian Chen"]
+    venue: "IEEE International Conference on Automatic Face and Gesture Recognition (FG), 2026"
+    links:
+      - { label: IEEE Xplore, url: "https://ieeexplore.ieee.org/abstract/document/11556928/" }
+      - { label: DOI, url: "https://doi.org/10.1109/fg67764.2026.11556928" }
+      - { label: code, url: "https://github.com/lyra-planet/BlendEmo" }
+research_note: "Currently also working on agentic video diffusion workflows."
+
+projects:
+  - title: "LyHarness · modular coding-agent runtime"
+    url: "https://github.com/lyra-planet/LyHarness"
+    when: Aug 2026 – present
+    points:
+      - "Runtime: configuration, runtime state and application services are separate layers, with one path for model calls, tool dispatch and lifecycle. File and shell tools, Git worktree isolation, skills, MCP tool discovery, permission hooks, retries and background scheduling."
+      - "Collaboration and memory: persistent tasks and a file-based message bus for claiming work and syncing state. Persistent memory, context compaction, history recovery and spilling tool output to disk keep context small and let a run resume on another instance."
+      - "Workflow recovery: structured, parallel sub-tasks with stage logs, run snapshots and a persistent journal to resume after interruption; an independent evaluator checks the goal and keeps the agent going. pytest covers the task lifecycle, tool execution, memory isolation and dedup, workflow runs and goal commands."
+  - title: "Patchloom · multi-agent, self-evolving PR review and auto-fix"
+    when: Sep 2026 – present
+    points:
+      - "Runtime harness: task state, budgets, retries and cancellation; checkpoints to resume, node-level records for replay and failure attribution; context compressed by risky hunks, observations and token budget; four-layer memory with tenant and repository isolation."
+      - "Self-evolving orchestrator: a main agent dispatches security, reliability and critic sub-agents. False positives, misses, bad fixes and execution errors become prompt and skill candidates, which go live only after three gates, with dedup, versioning and rollback."
+      - "Evaluated on 100 controlled PR diffs: review accuracy 92.5%, risk-detection F1 from 81.9% to 92.5%, high-risk recall from 84.2% to 94.7%."
+  - title: "TencentDB-Agent-Memory · dynamic skill-queue injection (PR #1281)"
+    url: "https://github.com/TencentCloud/TencentDB-Agent-Memory/pull/1281"
+    when: Sep 2026 – present
+    points:
+      - "Three injection strategies for MemoryProxy (every_queue, latest_only, adaptive_queue) using BM25 over the latest user queue, with history snapshots, incremental injection and multi-turn state recovery."
+      - "Compatible with the Codex and WorkBuddy protocols; immutable snapshots, a hook cache and session/queue isolation keep instances consistent. In a 100-task evaluation with 26 tests, latest_only reaches 91% success and adaptive_queue a 94.03% KV-cache hit rate."
+
+open_source:
+  - title: "TencentDB-Agent-Memory (Tencent Cloud) · community contributor"
+    url: "https://github.com/TencentCloud/TencentDB-Agent-Memory/pulls?q=is%3Apr+author%3Alyra-planet"
+    when: Jun 2026 – present
+    points: ["Public PRs on dynamic skill-queue injection, SQLite FTS5 query sanitization, checkpoint recomputation, context-cache boundaries and gateway timestamp normalization."]
+  - title: "Open Source Promotion Plan (OSPP) 2025 · OpenTiny TinyVue"
+    url: "https://github.com/opentiny/tiny-vue"
+    sub: Project developer · completed
+    when: Aug 2025 – Oct 2025
+    points: ["Built TinyVue's global animation configuration and received the OSPP 2025 completion certificate."]
+  - title: "Tencent Rhino-Bird Open Source Talent Program 2025"
+    url: "https://github.com/TDesignOteam/tdesign-mobile-vue-starter-community"
+    sub: Project developer · Outstanding Student
+    when: Sep 2025 – Oct 2025
+    points: ["Built a TDesign Mobile Vue page template with mobile modules, internationalization and theming."]
+
+honors:
+  - "Lanqiao Cup Digital Technology Innovation Contest, national finals: 2nd place nationwide (National First Prize)"
+  - "Lanqiao Cup Software Contest, Web Application Development (university group): National First Prize"
+  - "RAICOM Robot Developer Competition (CAIP): National First Prize"
+  - "China Collegiate Computing Contest (Computer Design Competition): National Third Prize"
+
 skills:
-  - { area: Generation, items: "image & video diffusion, controllable generation, ComfyUI workflows" }
-  - { area: Multimodal, items: "audio-visual fusion, emotion recognition, evaluation" }
-  - { area: Agents, items: "coding-agent harnesses, multi-agent systems, Claude Code, MCP" }
-  - { area: Stack, items: "Python, PyTorch, LangChain, TypeScript, React, Vue" }
+  - { area: Agents & LLMs, items: "ReAct, RAG, context engineering, MCP, agent skills, multi-agent collaboration, memory and retrieval, structured output, agent evaluation; LangChain multi-agent systems, prompt engineering; familiar with agentic RL, RLHF, DPO and GRPO" }
+  - { area: Models, items: "PyTorch, Transformers, Hugging Face; training, LoRA and parameter-efficient fine-tuning, data processing, checkpoints and safetensors" }
+  - { area: Engineering, items: "Python, TypeScript/JavaScript; Linux, shell, React, Vue 3, Next.js, REST APIs, CLIs, VS Code extensions, Git" }

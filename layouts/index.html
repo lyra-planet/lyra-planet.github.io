@@ -6,12 +6,14 @@
     <p class="lede">I build generative models and the agents around them.</p>
     <dl class="now">
       <div><dt>now</dt><dd>Intern · Foundation Model Center, Kling Team, Kuaishou Technology</dd></div>
-      <div><dt>study</dt><dd>M.S. · Southeast University (SEU), Nanjing</dd></div>
+      <div><dt>study</dt><dd>M.Eng. in AI · Southeast University (SEU), Suzhou · PALM Lab</dd></div>
+      <div><dt>paper</dt><dd>BlendEmo · FG 2026, first author</dd></div>
     </dl>
     <p class="cta">
       <a class="btn" href="{{ (site.GetPage "/cv").RelPermalink }}">Read the CV</a>
       <a class="btn ghost" href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a>
       <a class="btn ghost" href="https://github.com/{{ site.Params.github }}">GitHub ↗</a>
+      <a class="btn ghost" href="{{ site.Params.scholar }}">Scholar ↗</a>
     </p>
   </div>
   <figure class="hero-art">
@@ -35,11 +37,11 @@
   <h2 class="label">// selected work</h2>
   <div class="cards">
     {{ range site.Data.projects }}
-    <a class="card" href="{{ .url }}">
-      <div class="card-head">{{ partial "pixelicon.html" .icon }}<div><h3>{{ .name }}</h3><p class="repo">lyra-planet/{{ .name }}</p></div></div>
-      <p>{{ .desc }}</p>
-      <p class="chips"><span class="lang">Python</span>{{ range .topics }}<span class="chip">{{ . }}</span>{{ end }}</p>
-    </a>
+    {{ $inner := printf `<div class="card-head">%s<div><h3>%s</h3><p class="repo">%s</p></div></div><p>%s</p>` (partial "pixelicon.html" .icon) .name .sub .desc }}
+    {{ $chips := "" }}{{ with .lang }}{{ $chips = printf `<span class="lang">%s</span>` . }}{{ end }}
+    {{ range .topics }}{{ $chips = printf `%s<span class="chip">%s</span>` $chips . }}{{ end }}
+    {{ if .url }}<a class="card" href="{{ .url }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></a>
+    {{ else }}<div class="card static">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></div>{{ end }}
     {{ end }}
   </div>
 </section>

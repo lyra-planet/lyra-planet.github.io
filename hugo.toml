@@ -6,7 +6,8 @@ summaryLength = 40
 titleCaseStyle = "none"
 
 [params]
-  description = "Lyra builds generative models and the agents around them. Intern at the Kling Team, Kuaishou Technology; M.S. student at Southeast University."
+  description = "Kai Cheng (Lyra) builds generative models and the agents around them. Intern at the Kling Team, Kuaishou Technology; M.Eng. student in AI at Southeast University."
+  scholar = "https://scholar.google.com/citations?user=Sa6Mj0kAAAAJ"
   github = "lyra-planet"
   usageJSON = "https://raw.githubusercontent.com/lyra-planet/lyra-planet/main/data/claude-code-usage.json"
 
