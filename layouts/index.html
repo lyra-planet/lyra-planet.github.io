@@ -1,0 +1,69 @@
+{{ define "main" }}
+<section class="hero">
+  <div class="hero-text">
+    <p class="kicker">~/lyra-planet</p>
+    <h1>Lyra</h1>
+    <p class="lede">I build generative models and the agents around them.</p>
+    <dl class="now">
+      <div><dt>now</dt><dd>Intern · Foundation Model Center, Kling Team, Kuaishou Technology</dd></div>
+      <div><dt>study</dt><dd>M.S. · Southeast University (SEU), Nanjing</dd></div>
+    </dl>
+    <p class="cta">
+      <a class="btn" href="{{ (site.GetPage "/cv").RelPermalink }}">Read the CV</a>
+      <a class="btn ghost" href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a>
+      <a class="btn ghost" href="https://github.com/{{ site.Params.github }}">GitHub ↗</a>
+    </p>
+  </div>
+  <figure class="hero-art">
+    <img class="only-light" src="{{ "img/planet-light.svg" | relURL }}" width="307" height="179" alt="A pixel-art planet with a ring and a moon, repeatedly denoised out of random noise">
+    <img class="only-dark" src="{{ "img/planet-dark.svg" | relURL }}" width="307" height="179" alt="">
+  </figure>
+</section>
+
+{{ with .Content }}<section class="about prose">{{ . }}</section>{{ end }}
+
+<section>
+  <h2 class="label">// focus</h2>
+  <div class="focus">
+    {{ range site.Data.focus }}
+    <div class="tile">{{ partial "pixelicon.html" .icon }}<div><h3>{{ .title }}</h3><p>{{ .note }}</p></div></div>
+    {{ end }}
+  </div>
+</section>
+
+<section>
+  <h2 class="label">// selected work</h2>
+  <div class="cards">
+    {{ range site.Data.projects }}
+    <a class="card" href="{{ .url }}">
+      <div class="card-head">{{ partial "pixelicon.html" .icon }}<div><h3>{{ .name }}</h3><p class="repo">lyra-planet/{{ .name }}</p></div></div>
+      <p>{{ .desc }}</p>
+      <p class="chips"><span class="lang">Python</span>{{ range .topics }}<span class="chip">{{ . }}</span>{{ end }}</p>
+    </a>
+    {{ end }}
+  </div>
+</section>
+
+<section>
+  <h2 class="label">// writing</h2>
+  <ul class="postlist">
+    {{ range first 3 (where site.RegularPages "Section" "posts") }}
+    <li><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 02, 2006" }}</time>
+      <div><a href="{{ .RelPermalink }}">{{ .Title }}</a><p>{{ .Params.lede | default .Summary }}</p></div></li>
+    {{ end }}
+  </ul>
+  <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a></p>
+</section>
+
+<section id="numbers">
+  <h2 class="label">// ai-native, in numbers</h2>
+  <div class="usage" data-src="{{ site.Params.usageJSON }}">
+    <div class="kpis"></div>
+    <figure class="chart" aria-label="Claude Code tokens per day, last 30 days"><svg role="img"></svg><div class="tip" hidden></div></figure>
+    <details class="table"><summary>View as table</summary><div></div></details>
+    <noscript><p>The live chart needs JavaScript. The numbers are in <a href="https://github.com/{{ site.Params.github }}/{{ site.Params.github }}/blob/main/data/claude-code-usage.json">this JSON file</a>.</p></noscript>
+    <p class="note">Counted from my local Claude Code session logs, each API response once; only daily totals leave the machine.
+      Method: <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count them</a>.</p>
+  </div>
+</section>
+{{ end }}

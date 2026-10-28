@@ -1,0 +1,3 @@
+{{- /* 10×10 像素图标：图标定义在 data/icons.json（真源是 GitHub 主页那边的 cards.py） */ -}}
+{{- $rows := index site.Data.icons . -}}
+<span class="px" aria-hidden="true">{{ range $rows }}{{ range split . "" }}<i class="p{{ if eq . "." }}_{{ else }}{{ . }}{{ end }}"></i>{{ end }}{{ end }}</span>

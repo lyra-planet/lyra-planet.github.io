@@ -1,0 +1,86 @@
+{
+ "terminal": [
+  "cccccccccc",
+  "cCCCCCCCCc",
+  "ckkkkkkkkc",
+  "ckwkkkkkkc",
+  "ckkwkkkkkc",
+  "ckwkkkkkkc",
+  "ckkkkwwwkc",
+  "ckkkkkkkkc",
+  "cccccccccc",
+  ".........."
+ ],
+ "heart": [
+  "..........",
+  ".ccc..bbb.",
+  "ccccccbbbb",
+  "cccccbbbbb",
+  "cccccbbbbb",
+  ".ccccbbbb.",
+  "..cccbbb..",
+  "...ccbb...",
+  "....cb....",
+  ".........."
+ ],
+ "book": [
+  "..........",
+  "pppp..pppp",
+  "pggppppggp",
+  "ppppCCpppp",
+  "pgggppgggp",
+  "ppppCCpppp",
+  "pggppppggp",
+  "ppppCCpppp",
+  "CCCCCCCCCC",
+  ".........."
+ ],
+ "film": [
+  "kkkkkkkkkk",
+  "kwkwkwkwkw",
+  "kkkkkkkkkk",
+  "kcckbbkcck",
+  "kcckbbkcck",
+  "kcckbbkcck",
+  "kkkkkkkkkk",
+  "kwkwkwkwkw",
+  "kkkkkkkkkk",
+  ".........."
+ ],
+ "frame": [
+  "CCCCCCCCCC",
+  "CppppppcpC",
+  "CpppppcccC",
+  "CppppppcpC",
+  "CppbpppppC",
+  "CpbbbppbpC",
+  "CbbbbbbbbC",
+  "CbBbbBbbBC",
+  "CCCCCCCCCC",
+  ".........."
+ ],
+ "wave": [
+  "..........",
+  "....c.....",
+  "..b.c..b..",
+  "..b.cc.b.c",
+  "b.bbcc.bbc",
+  "bbbbccbbbc",
+  "b.bbcc.bbc",
+  "..b.cc.b.c",
+  "..b.c..b..",
+  "....c....."
+ ],
+ "nodes": [
+  "..........",
+  ".cc....bb.",
+  ".cc....bb.",
+  "..gg..gg..",
+  "...gCCg...",
+  "...gCCg...",
+  "..gg..gg..",
+  ".bb....cc.",
+  ".bb....cc.",
+  ".........."
+ ]
+}

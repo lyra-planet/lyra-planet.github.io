@@ -1,0 +1,37 @@
+baseURL = "https://lyra-planet.github.io/"
+languageCode = "en"
+title = "Lyra"
+enableRobotsTXT = true
+summaryLength = 40
+titleCaseStyle = "none"
+
+[params]
+  description = "Lyra builds generative models and the agents around them. Intern at the Kling Team, Kuaishou Technology; M.S. student at Southeast University."
+  github = "lyra-planet"
+  usageJSON = "https://raw.githubusercontent.com/lyra-planet/lyra-planet/main/data/claude-code-usage.json"
+
+[permalinks]
+  posts = "/posts/:slug/"
+
+[taxonomies]
+  tag = "tags"
+
+[markup.highlight]
+  noClasses = false
+  lineNos = false
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.tableOfContents]
+  startLevel = 2
+  endLevel = 3
+
+[[menus.main]]
+  name = "Writing"
+  pageRef = "/posts"
+  weight = 10
+[[menus.main]]
+  name = "CV"
+  pageRef = "/cv"
+  weight = 20

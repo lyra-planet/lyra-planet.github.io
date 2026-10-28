@@ -1,0 +1,4 @@
+- { title: Image generation, note: "controllable diffusion", icon: frame }
+- { title: Video generation, note: "editing · long video", icon: film }
+- { title: Multimodal, note: "audio · face · video", icon: wave }
+- { title: Agentic workflows, note: "harnesses · eval loops", icon: nodes }

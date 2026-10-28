@@ -1,0 +1,25 @@
+# 只写确认过的事实；不知道的（年份、专业、发表处）宁可空着
+name: Lyra
+headline: AI-native builder of generative and agentic systems
+links:
+  - { label: GitHub, url: "https://github.com/lyra-planet" }
+experience:
+  - org: Kling Team, Kuaishou Technology
+    unit: Foundation Model Center · Foundation Model & Agent Algorithms Department
+    role: Intern
+    when: Oct 2026 – present
+    points:
+      - Evaluation pipelines and agentic workflows for video generation models.
+education:
+  - school: Southeast University (SEU)
+    detail: M.S. student · Nanjing
+  - school: Tiangong University (TGU)
+    detail: Undergraduate
+publications:
+  - title: "BlendEmo: Structured Set Prediction and Pair-Conditioned Ratio Modeling for Blended Emotion Recognition"
+    links: [{ label: code, url: "https://github.com/lyra-planet/BlendEmo" }]
+skills:
+  - { area: Generation, items: "image & video diffusion, controllable generation, ComfyUI workflows" }
+  - { area: Multimodal, items: "audio-visual fusion, emotion recognition, evaluation" }
+  - { area: Agents, items: "coding-agent harnesses, multi-agent systems, Claude Code, MCP" }
+  - { area: Stack, items: "Python, PyTorch, LangChain, TypeScript, React, Vue" }

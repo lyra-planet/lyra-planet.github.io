@@ -1,0 +1,8 @@
+<header class="nav wrap">
+  <a class="brand" href="{{ site.Home.RelPermalink }}"><span class="dot"></span>~/lyra</a>
+  <nav>
+    {{ range site.Menus.main }}<a href="{{ .URL | relURL }}"{{ if $.IsMenuCurrent "main" . }} aria-current="page"{{ end }}>{{ .Name }}</a>{{ end }}
+    <a href="https://github.com/{{ site.Params.github }}" rel="me">GitHub ↗</a>
+    <button class="theme" type="button" aria-label="Toggle colour theme" title="Toggle theme"><span></span></button>
+  </nav>
+</header>

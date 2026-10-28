@@ -1,0 +1,46 @@
+[
+ {
+  "name": "LyHarness",
+  "icon": "terminal",
+  "desc": "Local, interactive coding-agent harness: workspace tools, tasks, worktrees, team coordination, MCP and permissions around the model's own decisions.",
+  "topics": [
+   "agents",
+   "coding-agent",
+   "mcp"
+  ],
+  "url": "https://github.com/lyra-planet/LyHarness"
+ },
+ {
+  "name": "BlendEmo",
+  "icon": "heart",
+  "desc": "Code for our BlendEmo paper: blended emotion recognition on BLEMORE via structured set prediction and pair-conditioned ratio modeling.",
+  "topics": [
+   "multimodal",
+   "emotion",
+   "pytorch"
+  ],
+  "url": "https://github.com/lyra-planet/BlendEmo"
+ },
+ {
+  "name": "GAL-Dreamer",
+  "icon": "book",
+  "desc": "Multi-agent system that turns one conversation into a complete galgame: world-building, characters, story outline and consistency checks.",
+  "topics": [
+   "multi-agent",
+   "langchain",
+   "llm"
+  ],
+  "url": "https://github.com/lyra-planet/GAL-Dreamer"
+ },
+ {
+  "name": "Pipline",
+  "icon": "film",
+  "desc": "Multi-stage video editing with MiniMax-H3 through a hosted API or a local ComfyUI workflow, with retries and failure repair.",
+  "topics": [
+   "video-gen",
+   "comfyui",
+   "pipeline"
+  ],
+  "url": "https://github.com/lyra-planet/Pipline"
+ }
+]

@@ -1,0 +1,38 @@
+{{ define "main" }}
+{{ $cv := site.Data.cv }}
+<article class="cv">
+  <header class="cv-head">
+    <div>
+      <p class="kicker">curriculum vitae</p>
+      <h1>{{ $cv.name }}</h1>
+      <p class="lede">{{ $cv.headline }}</p>
+    </div>
+    <p class="cv-actions">{{ range $cv.links }}<a href="{{ .url }}">{{ .label }}</a>{{ end }}<a href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a><button class="btn ghost print" type="button">Save as PDF</button></p>
+  </header>
+
+  <section><h2 class="label">// experience</h2>
+    {{ range $cv.experience }}
+    <div class="entry"><div class="when">{{ .when }}</div><div>
+      <h3>{{ .role }} · {{ .org }}</h3><p class="sub">{{ .unit }}</p>
+      <ul>{{ range .points }}<li>{{ . }}</li>{{ end }}</ul></div></div>
+    {{ end }}
+  </section>
+
+  <section><h2 class="label">// education</h2>
+    {{ range $cv.education }}<div class="entry"><div class="when"></div><div><h3>{{ .school }}</h3><p class="sub">{{ .detail }}</p></div></div>{{ end }}
+  </section>
+
+  <section><h2 class="label">// publications</h2>
+    {{ range $cv.publications }}<div class="entry"><div class="when"></div><div><h3 class="title">{{ .title }}</h3>
+      <p class="sub">{{ range .links }}<a href="{{ .url }}">{{ .label }}</a>{{ end }}</p></div></div>{{ end }}
+  </section>
+
+  <section><h2 class="label">// selected projects</h2>
+    {{ range site.Data.projects }}<div class="entry"><div class="when"></div><div><h3><a href="{{ .url }}">{{ .name }}</a></h3><p class="sub">{{ .desc }}</p></div></div>{{ end }}
+  </section>
+
+  <section><h2 class="label">// skills</h2>
+    <dl class="skills">{{ range $cv.skills }}<div><dt>{{ .area }}</dt><dd>{{ .items }}</dd></div>{{ end }}</dl>
+  </section>
+</article>
+{{ end }}
