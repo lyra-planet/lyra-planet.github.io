@@ -20,7 +20,7 @@ education:
     points: ["GPA 3.82/4.0 (top 5%); President's Scholarship and Sangma Scholarship; CET-6 496."]
 
 experience:
-  - title: Intern · Kling Team, Kuaishou Technology
+  - title: Multimodal LLM Intern · Kling Team, Kuaishou Technology
     sub: Foundation Model Center · Foundation Model & Agent Algorithms Department
     when: Oct 2026 – present
     points: ["Evaluation pipelines and agentic workflows for video generation models."]
