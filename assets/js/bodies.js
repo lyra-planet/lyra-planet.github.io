@@ -1,5 +1,5 @@
 // Home page rigid bodies (Matter.js, self-hosted, loaded on demand):
-//   pit      the stack is a box of chips: drag, throw, kick empty space, scroll to shake
+//   stack    the stack's chips live at the bottom of the window: drag, throw, resize the window, scroll
 //   gravity  the corner button turns everything on screen into bodies that fall; press again (or Esc) to put them back
 // On phones, gravity follows the device's tilt in both. Nothing runs under reduced motion.
 (() => {
@@ -17,6 +17,8 @@
     s.onerror = no;
     document.head.append(s);
   });
+  let lastPointer = "mouse";                   // Safari's click has no pointerType; remember what pressed
+  addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
   const engines = new Set();                  // every live engine follows the same tilt
   const tiltG = { x: 0, y: 1 };
 
@@ -45,11 +47,16 @@
     return c;
   };
 
-  // ---------- pit ----------
+  // ---------- stack: chips that live at the bottom of the window ----------
+  // The whole window is the box: the floor is its bottom edge, the walls its sides. Resizing the window moves
+  // the walls, so the chips get pushed; scrolling moves the window over the page, so they feel the jolt.
   const pitRun = (() => {
     if (!stage) return () => {};
-    let engine = null, items = [], bodies = [], grab = null, grabbed = false, ceiling = null, born = 0;
-    let visible = false, running = false, last = 0, acc = 0, sy = scrollY, sv = 0, W = 0, H = 0;
+    const layer = document.createElement("div");
+    layer.className = "heap";
+    let engine = null, items = [], bodies = [], walls = null, grab = null, grabbed = false, ceiling = null, born = 0, few = false;
+    let running = false, last = 0, acc = 0, sy = scrollY, sv = 0, W = innerWidth, H = innerHeight;
+    const T = 400, BIG = 20000, small = () => innerWidth < 640 || innerHeight < 520;
 
     const build = () => {
       const { Engine, Bodies, Composite } = M;
@@ -58,21 +65,28 @@
       engine.gravity.x = tiltG.x; engine.gravity.y = tiltG.y;
       engines.add(engine);
       ceiling = null; born = performance.now();
-      pit.classList.add("armed");
-      W = stage.clientWidth;
-      items = [...stage.querySelectorAll("li")].map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
-      // the settled pile is about 1.3x the chips' own area; twice that leaves room to throw things around
-      const area = items.reduce((a, it) => a + it.w * it.h, 0);
-      H = Math.round(clamp((area / W) * 2, 260, 420));
-      stage.style.height = `${H}px`;
-      const T = 200, wall = { isStatic: true };
-      Composite.add(engine.world, [
-        Bodies.rectangle(W / 2, H + T / 2, W + 2 * T, T, wall),
-        Bodies.rectangle(-T / 2, (H - 1600) / 2, T, H + 1600 + T, wall),        // side walls reach far up: chips spawn above the box
-        Bodies.rectangle(W + T / 2, (H - 1600) / 2, T, H + 1600 + T, wall),
-      ]);
+      if (!layer.isConnected) { document.body.append(layer); layer.append(stage); pit.classList.add("armed"); }
+      W = layer.clientWidth; H = layer.clientHeight;      // the layer's own box: innerWidth would count the scrollbar
+      few = small();                              // phones (either way up) get ten chips, so the pile stays low
+      const all = [...stage.querySelectorAll("li")];
+      all.forEach((el, i) => { el.hidden = few && i >= 10; el.style.transform = ""; });
+      items = all.filter((el) => !el.hidden).map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
+      const wall = { isStatic: true };
+      walls = {                                   // huge, so a resize only ever has to move the right wall and the floor
+        floor: Bodies.rectangle(W / 2, H + T / 2, BIG, T, wall),
+        left: Bodies.rectangle(-T / 2, 0, T, BIG, wall),
+        right: Bodies.rectangle(W + T / 2, 0, T, BIG, wall),
+      };
+      // the gravity button is furniture: a block from the button to the window's corner, so chips pile on it and
+      // can't slip into the gap beneath it. The button is pinned to the corner, so the block keeps its size.
+      if (gbtn) {
+        const r = gbtn.getBoundingClientRect(), w = W + 40 - r.left, h = H + 40 - r.top;
+        walls.button = Bodies.rectangle(r.left + w / 2, r.top + h / 2, w, h, { ...wall, chamfer: { radius: [r.height / 2, 0, 0, 0] } });
+        walls.button.centre = () => { const g = gbtn.getBoundingClientRect(); return { x: g.left + w / 2, y: g.top + h / 2 }; };
+      }
+      Composite.add(engine.world, Object.values(walls));
       let y = 0;
-      bodies = items.map((it) => {
+      bodies = items.map((it) => {               // they rain in from above the window
         y -= it.h + 6;
         it.body = Bodies.rectangle(it.w / 2 + Math.random() * Math.max(1, W - it.w), y, it.w, it.h, {
           chamfer: { radius: it.h / 2 - 1 }, angle: (Math.random() - 0.5) * 0.6,
@@ -85,31 +99,45 @@
       run();
     };
 
-    // the lid goes on once every chip has fallen in; after 4 s, stragglers (gravity pointing up) are dropped back inside
+    // the lid (the window's top edge) goes on once every chip has fallen in; after 4 s, stragglers are dropped back inside
     const lid = () => {
       if (ceiling) return;
       if (performance.now() - born < 4000 && !bodies.every((b) => b.bounds.min.y > 0)) return;
       for (const b of bodies) if (b.bounds.min.y < 0) M.Body.setPosition(b, { x: b.position.x, y: 40 });
-      ceiling = M.Bodies.rectangle(W / 2, -100, W + 400, 200, { isStatic: true });
+      ceiling = M.Bodies.rectangle(W / 2, -T / 2, BIG, T, { isStatic: true });
       M.Composite.add(engine.world, ceiling);
     };
-    // safety net: anything that escapes the box drops back in from the top
+    // walls follow the window edges at up to 25 px a frame, so a resize pushes the chips instead of teleporting past them
+    const follow = () => {
+      const tx = layer.clientWidth + T / 2, ty = layer.clientHeight + T / 2, r = walls.right.position, f = walls.floor.position;
+      if (walls.button) {
+        const { x: gx, y: gy } = walls.button.centre(), b = walls.button.position;
+        if (b.x !== gx || b.y !== gy) M.Body.setPosition(walls.button, { x: b.x + clamp(gx - b.x, -25, 25), y: b.y + clamp(gy - b.y, -25, 25) });
+      }
+      if (r.x === tx && f.y === ty) return false;
+      M.Body.setPosition(walls.right, { x: r.x + clamp(tx - r.x, -25, 25), y: r.y });
+      M.Body.setPosition(walls.floor, { x: f.x, y: f.y + clamp(ty - f.y, -25, 25) });
+      W = walls.right.position.x - T / 2; H = walls.floor.position.y - T / 2;
+      bodies.forEach((b) => M.Sleeping.set(b, false));
+      return true;
+    };
+    // safety net: anything that escapes (a hard throw, a fast resize) drops back in from the top
     const rescue = () => {
       for (const b of bodies) {
         const p = b.position;
         if (p.x > -60 && p.x < W + 60 && p.y < H + 60 && !(ceiling && p.y < -60)) continue;
-        M.Body.setPosition(b, { x: W / 2, y: 30 });
+        M.Body.setPosition(b, { x: W / 2, y: 40 });
         M.Body.setVelocity(b, { x: 0, y: 0 });
       }
     };
-    // the box moves with the page, so chips feel the scroll's acceleration (and hop when a fling stops)
+    // scrolling moves the window over the page: when it speeds up downward the chips feel lighter, and hop
     const inertia = () => {
       const v = scrollY - sy, a = v - sv;
       sy = scrollY; sv = v;
       if (Math.abs(a) < 1.5) return;
       for (const b of bodies) {
         M.Sleeping.set(b, false);
-        M.Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y + clamp(a, -30, 30) * 0.1 });
+        M.Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - clamp(a, -30, 30) * 0.1 });
       }
     };
     const sync = () => {
@@ -121,74 +149,72 @@
       }
     };
     const tick = (t) => {
-      if (!visible || document.hidden) { running = false; return; }
+      if (document.hidden) { running = false; return; }
       acc += Math.min(100, t - last); last = t;
+      const moved = follow();
       while (acc >= STEP) { M.Engine.update(engine, STEP); acc -= STEP; }
       inertia(); lid(); rescue(); sync();
-      if (!grab && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
+      if (!grab && !moved && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
       requestAnimationFrame(tick);
     };
     const run = () => {
-      if (running || !engine || !visible) return;
+      if (running || !engine) return;
       running = true; last = performance.now(); acc = 0; sy = scrollY; sv = 0;
       requestAnimationFrame(tick);
     };
 
-    const local = (e) => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    const inside = (p) => ({ x: clamp(p.x, 6, W - 6), y: clamp(p.y, 6, H - 6) });   // the hand stays in the box, so it can't drag a chip through a wall
+    const at = (e) => ({ x: e.clientX, y: e.clientY });
+    const inside = (p) => ({ x: clamp(p.x, 6, W - 6), y: clamp(p.y, 6, H - 6) });   // the hand stays in the window, so it can't drag a chip through a wall
     const hit = (p) => M.Query.point(bodies, p)[0];
+    const pop = (p, reach, power) => { kick(bodies, p, reach, power, stage, p); run(); };
 
     stage.addEventListener("pointerdown", (e) => {
       grabbed = false;
       if (!engine || e.button > 0) return;
-      const p = local(e), b = hit(p);
+      const p = at(e), b = hit(p);
       if (!b) return;
-      e.preventDefault();
+      if (e.pointerType === "mouse") e.preventDefault();
       stage.setPointerCapture(e.pointerId);
       grab = grabAt(engine, b, p);
-      grabbed = true;
-      stage.classList.add("grabbing");
+      grab.from = p;
+      layer.classList.add("grabbing");
       run();
     });
     stage.addEventListener("pointermove", (e) => {
-      if (!engine) return;
-      const p = local(e);
-      if (grab) grab.pointA = inside(p);
-      else if (e.pointerType === "mouse") stage.classList.toggle("over", !!hit(p));
+      if (!grab) return;
+      const p = at(e);
+      grab.pointA = inside(p);
+      if (Math.hypot(p.x - grab.from.x, p.y - grab.from.y) > 6) grabbed = true;
     });
     const release = () => {
       if (!grab) return;
       cap(grab.bodyB, 30);
       M.Composite.remove(engine.world, grab);
       grab = null;
-      stage.classList.remove("grabbing");
+      layer.classList.remove("grabbing");
     };
     stage.addEventListener("pointerup", release);
-    stage.addEventListener("pointercancel", release);
-    // a touch that lands on a chip drags it; anywhere else the page scrolls as usual
-    stage.addEventListener("touchstart", (e) => { if (grab) e.preventDefault(); }, { passive: false });
-    stage.addEventListener("touchmove", (e) => { if (grab) e.preventDefault(); }, { passive: false });
-    stage.addEventListener("click", (e) => {
-      if (!engine || grabbed || root.classList.contains("gravity")) return;
-      const p = local(e);
-      if (!hit(p)) { kick(bodies, p, 220, 16, stage, p); run(); }
-    });
+    stage.addEventListener("pointercancel", release);   // on phones a vertical swipe on a chip scrolls the page instead
+    // a click on a chip that wasn't dragged makes it hop and nudges its neighbours
+    stage.addEventListener("click", (e) => { if (engine && !grabbed && !root.classList.contains("gravity")) pop(at(e), 120, 9); });
+    // a press anywhere else in the window shakes the chips near it
+    const nearby = (e) => {
+      if (!engine || e.target.closest(".heap, .grav") || root.classList.contains("gravity")) return;
+      const p = at(e);
+      if (bodies.some((b) => Math.hypot(b.position.x - p.x, b.position.y - p.y) < 220)) { kick(bodies, p, 220, 14, stage, p); run(); }
+    };
+    addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") nearby(e); }, { passive: true });
+    addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) nearby(e); }, { passive: true });
 
-    new IntersectionObserver(([e]) => { if (e.isIntersecting) load().catch(() => {}); }, { rootMargin: "600px 0px" }).observe(pit);
-    new IntersectionObserver(([e]) => {
-      visible = e.isIntersecting;
-      if (!visible) return;
-      if (engine) return run();
-      Promise.all([load(), document.fonts && document.fonts.ready]).then(build).catch(() => {});
-    }, { rootMargin: "0px 0px -20% 0px" }).observe(stage);
+    const start = () => Promise.all([load(), document.fonts && document.fonts.ready]).then(build).catch(() => {});
+    if (document.readyState === "complete") setTimeout(start, 600);
+    else addEventListener("load", () => setTimeout(start, 600), { once: true });
     document.addEventListener("visibilitychange", () => run());
-    addEventListener("scroll", () => { if (engine && visible) run(); }, { passive: true });
-    let w0 = innerWidth;
+    addEventListener("scroll", () => run(), { passive: true });
     addEventListener("resize", () => {
-      if (innerWidth === w0 || !engine) return;      // phones fire resize when the URL bar slides; only width matters
-      w0 = innerWidth;
-      clearTimeout(build.t);
-      build.t = setTimeout(() => { if (!grab) { items.forEach((it) => (it.el.style.transform = "")); pit.classList.remove("armed"); stage.style.height = ""; build(); } }, 300);
+      if (!engine) return;
+      if (small() !== few && !grab) { clearTimeout(build.t); build.t = setTimeout(build, 300); return; }   // crossed the phone breakpoint: new set of chips
+      run();
     });
     return () => { bodies.forEach((b) => M.Sleeping.set(b, false)); run(); };
   })();

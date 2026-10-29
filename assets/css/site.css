@@ -300,11 +300,16 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .stage { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .stage li { font: 13.5px/1.3 var(--mono); padding: 7px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface); white-space: nowrap; }
 .stage li:nth-child(3n) { border-color: var(--clay); color: var(--clay-text); } .stage li:nth-child(5n) { border-color: var(--blue); }
-.armed .stage { display: block; position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 22px;
-  background: radial-gradient(var(--grid) 1px, transparent 1.3px) 0 0 / 22px 22px, var(--inset); }
-.armed .stage li { position: absolute; left: 0; top: 0; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
-  box-shadow: 0 6px 14px -10px rgba(20,20,19,.5); }
-.armed .stage.over { cursor: grab; } .armed .stage.grabbing, .armed .stage.grabbing li { cursor: grabbing; }
+/* with physics the chips move into a fixed layer over the whole window and pile up on its bottom edge */
+.heap { position: fixed; inset: 0; z-index: 55; pointer-events: none; overflow: hidden; }
+.heap .stage { position: absolute; inset: 0; display: block; }
+.heap .stage li { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  box-shadow: 0 6px 16px -10px rgba(20,20,19,.55); }
+.heap .stage li[hidden] { display: none; }
+.heap.grabbing, .heap.grabbing li { cursor: grabbing; }
+.armed .pit-hint { margin: 0; }
+@media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */
+@media print { .heap, .grav, .field { display: none; } }
 .boom { position: absolute; width: 0; height: 0; border: 2px solid var(--clay); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); animation: boom .55s ease-out forwards; }
 @keyframes boom { to { width: 300px; height: 300px; opacity: 0; } }
 .pit-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 0; font: 12px var(--mono); color: var(--muted); }

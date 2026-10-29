@@ -376,17 +376,20 @@
       const r = tl.getBoundingClientRect();
       return flat ? { u: e.clientX - r.left, w: e.clientY - r.top - 8 } : { u: e.clientY - r.top, w: e.clientX - r.left - 8 };
     };
-    // mouse: the string catches when the pointer crosses it, follows it, and snaps free past 30 px
+    // mouse: the string catches when the pointer crosses it, follows it, and snaps free past BAND.
+    // Only real motion counts: after a wheel scroll Chrome sends a pointermove with no movement, and the
+    // line sliding under a still pointer is not a pluck.
     addEventListener("pointermove", (e) => {
-      if (e.pointerType !== "mouse") return;
+      if (e.pointerType !== "mouse" || (!e.movementX && !e.movementY)) return;
       const { u, w } = rel(e), k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2), over = u > 0 && u < L && Math.abs(w) < BAND;
       if (grab && !over) { grab = null; start(); }
       else if (grab) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
       else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
       prevW = over ? w : null;
     }, { passive: true });
-    tl.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 10 || 10); } });
-    once(tl, () => setTimeout(() => pluck(L * 0.3, 10), 500), "0px 0px -20% 0px");
+    addEventListener("scroll", () => { prevW = null; if (grab) { grab = null; start(); } }, { passive: true });   // scrolling pulls the string off the hand
+    // touch: only a tap plucks; a swipe that starts on the timeline is a scroll
+    tl.addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 10 || 10); } });
     addEventListener("resize", () => { layout(); draw(); });
     layout(); draw();
   }
