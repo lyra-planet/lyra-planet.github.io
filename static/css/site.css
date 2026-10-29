@@ -314,10 +314,38 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 
 /* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
 .field { display: none; }
-.physics .field { display: block; position: absolute; left: 0; top: 0; width: 100%; height: min(100vh, 900px); z-index: -1; pointer-events: none; }
+.physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 .physics body.home::before { display: none; }
 .physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .physics .title span.held { cursor: grabbing; }
+
+/* springs, pixels, string (physics.js) */
+.spring { transition-property: border-color, box-shadow, background-color, color !important; }
+.physics .honor:hover .px { animation: none; }
+.physics .timeline::before { display: none; }
+.physics .timeline li::before { transform: translate(var(--sx, 0px), var(--sy, 0px)); }
+.string { position: absolute; left: 0; top: -32px; width: 100%; height: 80px; overflow: visible; pointer-events: none; }
+.string.down { top: 0; left: -32px; width: 80px; height: 100%; }
+.string path { fill: none; stroke: url(#string-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* gravity mode (bodies.js) */
+.grav { display: none; }
+.physics .grav { display: inline-flex; align-items: center; gap: 9px; position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+  font: 500 12.5px var(--mono); padding: 10px 15px 10px 13px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  box-shadow: 0 12px 30px -14px rgba(20,20,19,.5); cursor: pointer; }
+.grav i { width: 9px; height: 9px; border-radius: 2px; background: var(--clay); animation: drop 1.8s cubic-bezier(.55,0,1,.45) infinite; }
+@keyframes drop { 0% { transform: translateY(-7px); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateY(5px); } 78% { transform: translateY(2px); } 86%, 100% { transform: translateY(5px); opacity: 1; } }
+.gravity .grav { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.gravity .grav i { animation: none; transform: rotate(45deg); background: var(--clay); }
+.gravity .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+.gravity .reveal .stagger { opacity: 1 !important; animation: none !important; }
+.gravity .rise, .gravity .title span { animation: none !important; }
+.gravity body { -webkit-user-select: none; user-select: none; }
+/* the usage band breaks apart: its panel stays as an outline, its pieces fall as dark tiles */
+.gravity .band { background: transparent; border-style: dashed; border-color: rgba(135,134,127,.45); box-shadow: none; }
+.gravity .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 14px 30px -12px rgba(20,20,19,.55); }
+.gravity.grabbing, .gravity.grabbing * { cursor: grabbing !important; }
+.boom { z-index: 70; }
 
 /* scroll reveal */
 .js .reveal { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }

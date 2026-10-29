@@ -123,5 +123,7 @@
   </ul>
   <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a> &nbsp; <a href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV →</a></p>
 </section>
+<button class="grav" type="button" aria-pressed="false" data-engine="{{ "js/vendor/matter-0.20.0.min.js" | relURL }}" title="Let everything on screen fall. Press again or Esc to put it back."><i aria-hidden="true"></i><span>gravity</span></button>
 <script src="{{ "js/physics.js" | relURL }}" defer></script>
+<script src="{{ "js/bodies.js" | relURL }}" defer></script>
 {{ end }}

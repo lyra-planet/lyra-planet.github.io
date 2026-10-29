@@ -1,8 +1,12 @@
-// Home page physics, all real-time and pointer/touch driven:
-//   1. a spring field of dots behind the hero: the pointer pushes them, a click or tap sends a shockwave
-//   2. the title letters hang on springs: drag or flick one and the neighbours follow
-//   3. the stack is a box of chips (Matter.js, loaded on demand): drag, throw, kick, scroll to shake, tilt a phone
-// Each loop runs only while something moves. Nothing here runs under reduced motion.
+// Home page physics, real time, for mouse and touch. Spring effects live here; Matter.js bodies
+// (the stack box and gravity mode) are in bodies.js.
+//   field    the page's dot grid: the pointer pushes dots, a click or tap sends a shockwave, a scroll makes it sway
+//   letters  the title hangs on springs: drag or flick a letter and the neighbours follow
+//   springs  cards tilt toward the pointer, sink when pressed and wobble when let go
+//   pixels   pixel icons assemble as they scroll in and scatter when touched
+//   string   the timeline is a string you can pluck; its dots ride on it
+//   bars     chart bars are coupled springs: brush across them and a ripple runs through
+// Each loop stops when things come to rest. None of it runs under reduced motion.
 (() => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const root = document.documentElement;
@@ -10,6 +14,9 @@
   const DPR = Math.min(2, devicePixelRatio || 1);
   const css = (k) => getComputedStyle(root).getPropertyValue(k).trim();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const held = () => root.classList.contains("gravity");     // gravity mode owns element transforms while it is on
+  let lastPointer = "mouse";
+  addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
 
   // rAF loop that stops when step(dt) returns false; dt is in 60 fps frames, so 120 Hz screens run at the same speed
   const loop = (step) => {
@@ -26,90 +33,118 @@
     document.querySelector(".theme")?.addEventListener("click", () => requestAnimationFrame(f));   // after site.js flips data-theme
     matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", f);
   };
+  const once = (el, f, margin = "0px 0px -10% 0px") =>
+    new IntersectionObserver(([e], o) => { if (e.isIntersecting) { o.disconnect(); f(); } }, { rootMargin: margin }).observe(el);
 
-  // ---------- 1. dot field ----------
+  // ---------- field ----------
   const field = document.querySelector(".field");
   if (field) {
-    const ctx = field.getContext("2d"), GAP = 22, R = 120;
-    let W = 0, H = 0, dots = [], waves = [], ptr = null, ink = [];
-    const mix = (a, b, t) => {
-      const ch = (h, i) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
-      return `rgb(${[0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t))})`;
+    const ctx = field.getContext("2d"), G = 22, R = 120;
+    const live = new Map();                      // only dots the pointer or a wave displaced carry state, keyed by grid cell in page coordinates
+    const key = (c, r) => r * 4096 + c;
+    const get = (c, r) => { const k = key(c, r); let d = live.get(k); if (!d) live.set(k, (d = { ox: 0, oy: 0, vx: 0, vy: 0 })); return d; };
+    const batches = Array.from({ length: 32 }, () => []);   // 4 colours x 8 alpha levels, one fill() each
+    let W = 0, H = 0, styles = [], waves = [], ptr = null, sy = scrollY, sv = 0, gy = 0, gv = 0;
+    const paint = () => {
+      const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), a = hex(css("--axis")), c = hex(css("--clay"));
+      styles = [0, 0.4, 0.7, 1].flatMap((t) => Array.from({ length: 8 }, (_, l) => `rgba(${a.map((v, i) => Math.round(v + (c[i] - v) * t))},${(l + 1) / 8})`));
     };
-    const paint = () => { const a = css("--axis"), c = css("--clay"); ink = [0, 0.4, 0.7, 1].map((t) => mix(a, c, t)); };
-    const size = () => {
-      if (field.clientWidth === W && field.clientHeight === H) return;
-      W = field.clientWidth; H = field.clientHeight;
-      field.width = W * DPR; field.height = H * DPR;
-      dots = [];
-      for (let y = GAP / 2; y < H; y += GAP) for (let x = GAP / 2; x < W; x += GAP) {
-        // same fade as the CSS fallback: an ellipse centred top right
-        const a = 1 - Math.hypot((x - 0.75 * W) / (0.8 * W), (y - 0.25 * H) / (0.7 * H)) / 0.75;
-        if (a > 0.03) dots.push({ x, y, a, ox: 0, oy: 0, vx: 0, vy: 0, e: 0 });
-      }
-    };
-    const draw = () => {
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      for (let b = 0; b < 4; b++) {            // four colour buckets by displacement, from grid grey to clay
-        ctx.fillStyle = ink[b];
-        const s = 2 + b * 0.6;
-        for (const d of dots) {
-          if (Math.min(3, (d.e / 5) | 0) !== b) continue;
-          ctx.globalAlpha = Math.min(1, d.a + d.e / 25);
-          ctx.fillRect(d.x + d.ox - s / 2, d.y + d.oy - s / 2, s, s);
-        }
-      }
-      ctx.globalAlpha = 1;
-    };
+    const size = () => { W = innerWidth; H = innerHeight; field.width = W * DPR; field.height = H * DPR; };
+    // faint everywhere, brightest in an ellipse behind the hero
+    const glow = (x, y) => { const h = Math.min(H, 900); return Math.max(0.3, 1 - Math.hypot((x - 0.75 * W) / (0.8 * W), (y - 0.25 * h) / (0.7 * h)) / 0.75); };
+    const view = () => ({ top: Math.floor(scrollY / G), rows: Math.ceil(H / G) + 1, cols: Math.ceil(W / G) });
+    const sheet = (x) => 0.55 + 0.45 * Math.sin((Math.PI * x) / W);   // the middle of the sheet lags more than its edges
+
     const step = (dt) => {
-      let moving = waves.length > 0;
-      for (const w of waves) w.t += dt;
-      waves = waves.filter((w) => w.t < 70);
-      const damp = 0.86 ** dt;
-      for (const d of dots) {
-        let ax = -0.05 * d.ox, ay = -0.05 * d.oy;   // spring home
-        if (ptr) {
-          const dx = d.x + d.ox - ptr.x, dy = d.y + d.oy - ptr.y;
-          if (Math.abs(dx) < R && Math.abs(dy) < R) {
-            const r = Math.sqrt(dx * dx + dy * dy) || 1;
-            if (r < R) { const f = (1 - r / R) ** 2 * 1.5; ax += (dx / r) * f; ay += (dy / r) * f; }
+      const { top, rows, cols } = view(), damp = 0.86 ** dt;
+      // the grid is fixed to the page: when a scroll speeds up or stops, the sheet lags and overshoots
+      const v = scrollY - sy, a = v - sv;
+      sy = scrollY; sv = v;
+      if (Math.abs(a) > 1) gv += clamp(a, -40, 40) * 0.12;
+      gv = (gv - 0.05 * gy * dt) * damp; gy += gv * dt;
+      if (Math.abs(gy) + Math.abs(gv) < 0.05) gy = gv = 0;
+      if (ptr) {
+        const px = ptr.x, py = ptr.y + scrollY;
+        for (let r = Math.max(0, Math.floor((py - R) / G)); r <= Math.ceil((py + R) / G); r++)
+          for (let c = Math.max(0, Math.floor((px - R) / G)); c <= Math.min(cols, Math.ceil((px + R) / G)); c++) {
+            const d0 = live.get(key(c, r));
+            const dx = c * G + G / 2 + (d0 ? d0.ox : 0) - px, dy = r * G + G / 2 + (d0 ? d0.oy : 0) - py;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            if (dist >= R) continue;
+            const f = (1 - dist / R) ** 2 * 1.5 * dt, d = d0 || get(c, r);
+            d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
           }
-        }
-        for (const w of waves) {                     // a ring 36 px wide moving out at 9 px per frame
-          const dx = d.x - w.x, dy = d.y - w.y, r = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.abs(r - w.t * 9);
-          if (k < 36) { const f = (1 - k / 36) * 2.2 * (1 - w.t / 70); ax += (dx / r) * f; ay += (dy / r) * f; }
-        }
-        d.vx = (d.vx + ax * dt) * damp; d.vy = (d.vy + ay * dt) * damp;
-        d.ox += d.vx * dt; d.oy += d.vy * dt;
-        d.e = Math.abs(d.ox) + Math.abs(d.oy);
-        if (d.e + Math.abs(d.vx) + Math.abs(d.vy) > 0.05) moving = true;
       }
-      if (!moving) for (const d of dots) if (d.e < 0.05) d.ox = d.oy = d.vx = d.vy = d.e = 0;   // settled dots land exactly on the grid
+      for (const w of waves) {                   // a ring 36 px wide moving out at 9 px per frame
+        w.t += dt;
+        const rad = w.t * 9, fade = 1 - w.t / 70, reach = rad + 36;
+        for (let r = Math.max(top, Math.floor((w.y - reach) / G)); r <= Math.min(top + rows, Math.ceil((w.y + reach) / G)); r++)
+          for (let c = Math.max(0, Math.floor((w.x - reach) / G)); c <= Math.min(cols, Math.ceil((w.x + reach) / G)); c++) {
+            const dx = c * G + G / 2 - w.x, dy = r * G + G / 2 - w.y, dist = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.abs(dist - rad);
+            if (k >= 36) continue;
+            const f = (1 - k / 36) * 2.2 * fade * dt, d = get(c, r);
+            d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
+          }
+      }
+      waves = waves.filter((w) => w.t < 70);
+      let moving = waves.length > 0 || v !== 0 || gy !== 0;
+      for (const [k, d] of live) {
+        d.vx = (d.vx - 0.05 * d.ox * dt) * damp; d.vy = (d.vy - 0.05 * d.oy * dt) * damp;
+        d.ox += d.vx * dt; d.oy += d.vy * dt;
+        const sp = Math.abs(d.vx) + Math.abs(d.vy);
+        if (sp > 0.02) moving = true;
+        if (sp + Math.abs(d.ox) + Math.abs(d.oy) < 0.05) live.delete(k);   // settled dots land exactly on the grid
+      }
       draw();
       return moving;
     };
-    const start = loop(step);
-    const at = (x, y) => {
-      const r = field.getBoundingClientRect();
-      return y >= r.top && y <= r.bottom ? { x: x - r.left, y: y - r.top } : null;
+
+    const draw = () => {
+      const { top, rows, cols } = view();
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      for (const b of batches) b.length = 0;
+      for (let c = 0; c <= cols; c++) {
+        const x = c * G + G / 2, lag = gy * sheet(x);
+        for (let r = top; r <= top + rows; r++) {
+          const y = r * G + G / 2, d = live.get(key(c, r)), e = d ? Math.abs(d.ox) + Math.abs(d.oy) : 0;
+          const al = Math.min(7, Math.round(Math.min(1, glow(x, y) + e / 25) * 8) - 1);
+          if (al < 0) continue;
+          batches[Math.min(3, (e / 5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - scrollY + lag + (d ? d.oy : 0));
+        }
+      }
+      batches.forEach((pts, i) => {              // colour runs from grid grey to clay as a dot is pushed further
+        if (!pts.length) return;
+        const s = 2 + (i >> 3) * 0.6, h = s / 2;
+        ctx.fillStyle = styles[i];
+        ctx.beginPath();
+        for (let j = 0; j < pts.length; j += 2) ctx.rect(pts[j] - h, pts[j + 1] - h, s, s);
+        ctx.fill();
+      });
     };
-    const point = (x, y) => { const p = at(x, y); if (p || ptr) { ptr = p; start(); } };
-    addEventListener("pointermove", (e) => point(e.clientX, e.clientY), { passive: true });
+
+    const start = loop(step);
+    const point = (x, y) => { ptr = { x, y }; start(); };
+    const wave = (x, y) => { waves.push({ x, y: y + scrollY, t: 0 }); start(); };
+    addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") point(e.clientX, e.clientY); }, { passive: true });
     addEventListener("touchmove", (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
     addEventListener("touchend", () => { ptr = null; start(); }, { passive: true });
     root.addEventListener("mouseleave", () => { ptr = null; start(); });
-    addEventListener("pointerdown", (e) => { const p = at(e.clientX, e.clientY); if (p) { waves.push({ ...p, t: 0 }); start(); } }, { passive: true });
-    addEventListener("resize", () => { size(); draw(); });
+    // mouse: a wave on every press; touch: only on a tap, so starting a scroll doesn't set one off
+    addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") wave(e.clientX, e.clientY); }, { passive: true });
+    addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) wave(e.clientX, e.clientY); }, { passive: true });
+    addEventListener("scroll", start, { passive: true });
+    addEventListener("resize", () => { size(); start(); });
     onTheme(() => { paint(); draw(); });
     size(); paint(); draw();
   }
 
-  // ---------- 2. springy title ----------
+  // ---------- letters ----------
   const letters = [...document.querySelectorAll(".title span")].map((el) => ({ el, x: 0, y: 0, vx: 0, vy: 0, drag: null }));
   if (letters.length) {
     const rubber = (v) => Math.sign(v) * 260 * (1 - Math.exp(-Math.abs(v) / 260));   // pulling harder gives less
     const step = (dt) => {
+      if (held()) { letters.forEach((s) => { s.x = s.y = s.vx = s.vy = 0; s.drag = null; }); return false; }
       let moving = false;
       const damp = 0.86 ** dt;
       letters.forEach((s, i) => {
@@ -131,6 +166,7 @@
     letters.forEach((s) => {
       const el = s.el;
       el.addEventListener("pointerdown", (e) => {
+        if (held()) return;
         e.preventDefault();
         el.setPointerCapture(e.pointerId);
         s.drag = { px: e.clientX, py: e.clientY, rx: s.x, ry: s.y, t: e.timeStamp, moved: 0 };
@@ -156,208 +192,221 @@
       };
       el.addEventListener("pointerup", drop);
       el.addEventListener("pointercancel", drop);
-      el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !s.drag) { s.vy -= 4; start(); } });
+      el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !s.drag && !held()) { s.vy -= 4; start(); } });
     });
   }
 
-  // ---------- 3. stack box ----------
-  const pit = document.querySelector(".pit");
-  const stage = pit?.querySelector(".stage");
-  if (!stage) return;
-  let M = null, engine = null, items = [], bodies = [], grab = null, grabbed = false, ceiling = null, born = 0;
-  let visible = false, running = false, last = 0, acc = 0, sy = scrollY, sv = 0, W = 0, H = 0;
-  const load = () => M ? Promise.resolve(M) : new Promise((ok, no) => {
-    const s = document.createElement("script");
-    s.src = pit.dataset.engine;
-    s.onload = () => ok((M = window.Matter));
-    s.onerror = no;
-    document.head.append(s);
+  // ---------- springs ----------
+  // channels: rotateX, rotateY (deg), lift (px), scale
+  const springs = [
+    ...[...document.querySelectorAll(".hl, .card, .honor, .paper, .badges li, .hero-art")].map((el) => [el, true]),
+    ...[...document.querySelectorAll(".btn, .theme")].map((el) => [el, false]),
+  ].map(([el, tilt]) => {
+    el.classList.add("spring");
+    return { el, tilt, p: [0, 0, 0, 1], v: [0, 0, 0, 0], t: [0, 0, 0, 1] };
   });
-
-  const build = () => {
-    const { Engine, Bodies, Composite } = M;
-    engine && Composite.clear(engine.world, false);
-    engine = Engine.create({ enableSleeping: true });
-    ceiling = null; born = performance.now();
-    pit.classList.add("armed");
-    W = stage.clientWidth;
-    items = [...stage.children].map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
-    // the settled pile is about 1.3x the chips' own area; twice that leaves room to throw things around
-    const area = items.reduce((a, it) => a + it.w * it.h, 0);
-    H = Math.round(clamp((area / W) * 2, 260, 420));
-    stage.style.height = `${H}px`;
-    const T = 200, wall = { isStatic: true };
-    Composite.add(engine.world, [
-      Bodies.rectangle(W / 2, H + T / 2, W + 2 * T, T, wall),
-      Bodies.rectangle(-T / 2, (H - 1600) / 2, T, H + 1600 + T, wall),        // side walls reach far up: chips spawn above the box
-      Bodies.rectangle(W + T / 2, (H - 1600) / 2, T, H + 1600 + T, wall),
-    ]);
-    let y = 0;
-    bodies = items.map((it) => {
-      y -= it.h + 6;
-      it.body = Bodies.rectangle(it.w / 2 + Math.random() * Math.max(1, W - it.w), y, it.w, it.h, {
-        chamfer: { radius: it.h / 2 - 1 }, angle: (Math.random() - 0.5) * 0.6,
-        restitution: 0.3, friction: 0.2, frictionAir: 0.012, density: 0.002,
+  if (springs.length) {
+    const active = new Set(), EPS = [0.05, 0.05, 0.05, 0.0005];
+    const step = (dt) => {
+      if (held()) { for (const s of active) { s.p = [0, 0, 0, 1]; s.v = [0, 0, 0, 0]; s.t = [0, 0, 0, 1]; } active.clear(); return false; }
+      const damp = 0.8 ** dt;
+      for (const s of active) {
+        let rest = true;
+        for (let i = 0; i < 4; i++) {
+          s.v[i] = (s.v[i] + (s.t[i] - s.p[i]) * 0.14 * dt) * damp;
+          s.p[i] += s.v[i] * dt;
+          if (Math.abs(s.t[i] - s.p[i]) + Math.abs(s.v[i]) > EPS[i]) rest = false;
+        }
+        if (rest) { s.p = [...s.t]; s.v = [0, 0, 0, 0]; active.delete(s); }
+        const [rx, ry, z, k] = s.p;
+        s.el.style.transform = rx || ry || z || k !== 1
+          ? `perspective(900px) translateY(${z.toFixed(2)}px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) scale(${k.toFixed(4)})` : "";
+      }
+      return active.size > 0;
+    };
+    const start = loop(step);
+    const go = (s) => { active.add(s); start(); };
+    const aim = (s, e, deg) => {
+      const r = s.el.getBoundingClientRect();
+      s.t[0] = -((e.clientY - r.top) / r.height - 0.5) * deg;
+      s.t[1] = ((e.clientX - r.left) / r.width - 0.5) * deg;
+    };
+    for (const s of springs) {
+      const deg = s.tilt ? clamp(2400 / Math.max(1, s.el.offsetWidth), 3, 10) : 0;   // big cards tilt less
+      s.el.addEventListener("pointermove", (e) => {
+        if (e.pointerType !== "mouse" || held()) return;
+        aim(s, e, deg); s.t[2] = s.tilt ? -4 : 0; go(s);
       });
-      it.drawn = false;
-      return it.body;
-    });
-    Composite.add(engine.world, bodies);
-    run();
-  };
-
-  // the lid goes on once every chip has fallen in; after 4 s, stragglers (gravity pointing up) are dropped back inside
-  const lid = () => {
-    if (ceiling) return;
-    const late = performance.now() - born > 4000;
-    if (!late && !bodies.every((b) => b.bounds.min.y > 0)) return;
-    for (const b of bodies) if (b.bounds.min.y < 0) M.Body.setPosition(b, { x: b.position.x, y: 40 });
-    ceiling = M.Bodies.rectangle(W / 2, -100, W + 400, 200, { isStatic: true });
-    M.Composite.add(engine.world, ceiling);
-  };
-
-  // safety net: anything that escapes the box (a hard throw, a resize) drops back in from the top
-  const rescue = () => {
-    for (const b of bodies) {
-      const p = b.position;
-      if (p.x > -60 && p.x < W + 60 && p.y < H + 60 && !(ceiling && p.y < -60)) continue;
-      M.Body.setPosition(b, { x: W / 2, y: 30 });
-      M.Body.setVelocity(b, { x: 0, y: 0 });
-    }
-  };
-
-  const sync = () => {
-    for (const it of items) {
-      const b = it.body;
-      if (b.isSleeping && it.drawn) continue;
-      it.drawn = true;
-      it.el.style.transform = `translate3d(${(b.position.x - it.w / 2).toFixed(1)}px, ${(b.position.y - it.h / 2).toFixed(1)}px, 0) rotate(${b.angle.toFixed(3)}rad)`;
-    }
-  };
-
-  const wake = () => bodies.forEach((b) => M.Sleeping.set(b, false));
-
-  // the box moves with the page, so chips feel the scroll's acceleration (and hop when a fling stops)
-  const inertia = () => {
-    const v = scrollY - sy, a = v - sv;
-    sy = scrollY; sv = v;
-    if (Math.abs(a) < 1.5) return;
-    for (const b of bodies) {
-      M.Sleeping.set(b, false);
-      M.Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y + clamp(a, -30, 30) * 0.1 });
-    }
-  };
-
-  const tick = (t) => {
-    if (!visible || document.hidden) { running = false; return; }
-    acc += Math.min(100, t - last); last = t;
-    while (acc >= 1000 / 60) { M.Engine.update(engine, 1000 / 60); acc -= 1000 / 60; }
-    inertia(); lid(); rescue(); sync();
-    if (!grab && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
-    requestAnimationFrame(tick);
-  };
-  const run = () => {
-    if (running || !engine || !visible) return;
-    running = true; last = performance.now(); acc = 0; sy = scrollY; sv = 0;
-    requestAnimationFrame(tick);
-  };
-
-  const local = (e) => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const inside = (p) => ({ x: clamp(p.x, 6, W - 6), y: clamp(p.y, 6, H - 6) });   // the hand stays in the box, so it can't drag a chip through a wall
-  const hit = (p) => M.Query.point(bodies, p)[0];
-
-  const boom = (p) => {
-    const ring = document.createElement("i");
-    ring.className = "boom";
-    ring.style.left = `${p.x}px`; ring.style.top = `${p.y}px`;
-    ring.addEventListener("animationend", () => ring.remove());
-    stage.append(ring);
-  };
-  const kick = (p) => {
-    for (const b of bodies) {
-      const dx = b.position.x - p.x, dy = b.position.y - p.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 220) continue;
-      const f = (1 - d / 220) * 16;
-      M.Sleeping.set(b, false);
-      M.Body.setVelocity(b, { x: b.velocity.x + (dx / d) * f, y: b.velocity.y + (dy / d) * f - f * 0.7 });
-      M.Body.setAngularVelocity(b, b.angularVelocity + (Math.random() - 0.5) * 0.4);
-    }
-    boom(p); run();
-  };
-
-  stage.addEventListener("pointerdown", (e) => {
-    grabbed = false;
-    if (!engine || e.button > 0) return;
-    const p = local(e), b = hit(p);
-    if (!b) return;
-    e.preventDefault();
-    stage.setPointerCapture(e.pointerId);
-    grab = M.Constraint.create({ pointA: p, bodyB: b, pointB: { x: p.x - b.position.x, y: p.y - b.position.y }, stiffness: 0.2, damping: 0.1, length: 0 });
-    M.Composite.add(engine.world, grab);
-    M.Sleeping.set(b, false);
-    grabbed = true;
-    stage.classList.add("grabbing");
-    run();
-  });
-  stage.addEventListener("pointermove", (e) => {
-    if (!engine) return;
-    const p = local(e);
-    if (grab) grab.pointA = inside(p);
-    else if (e.pointerType === "mouse") stage.classList.toggle("over", !!hit(p));
-  });
-  const release = () => {
-    if (!grab) return;
-    const b = grab.bodyB, v = b.velocity, s = Math.hypot(v.x, v.y);
-    if (s > 30) M.Body.setVelocity(b, { x: (v.x * 30) / s, y: (v.y * 30) / s });   // keep throws from tunnelling through walls
-    M.Composite.remove(engine.world, grab);
-    grab = null;
-    stage.classList.remove("grabbing");
-  };
-  stage.addEventListener("pointerup", release);
-  stage.addEventListener("pointercancel", release);
-  // a touch that lands on a chip drags it; anywhere else the page scrolls as usual
-  stage.addEventListener("touchstart", (e) => { if (grab) e.preventDefault(); }, { passive: false });
-  stage.addEventListener("touchmove", (e) => { if (grab) e.preventDefault(); }, { passive: false });
-  stage.addEventListener("click", (e) => { if (engine && !grabbed && !hit(local(e))) kick(local(e)); });
-
-  // phones: gravity follows the device. iOS asks for permission, which needs a tap.
-  const tiltBtn = pit.querySelector(".tilt");
-  const tilt = () => addEventListener("deviceorientation", (e) => {
-    if (e.beta == null) return;
-    tiltBtn.hidden = true;                    // events are arriving, so no permission prompt is needed
-    if (!engine) return;
-    const b = (e.beta * Math.PI) / 180, g = (e.gamma * Math.PI) / 180;
-    const th = (((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * Math.PI) / 180;
-    const x = Math.sin(g) * Math.cos(b), y = Math.sin(b);                    // gravity in screen coordinates, portrait
-    const gx = x * Math.cos(th) + y * Math.sin(th), gy = -x * Math.sin(th) + y * Math.cos(th);
-    if (Math.abs(gx - engine.gravity.x) + Math.abs(gy - engine.gravity.y) < 0.04) return;
-    engine.gravity.x = gx; engine.gravity.y = gy;
-    wake(); run();
-  });
-  // Android sends events right away; iOS sends nothing until the page asks, so it keeps the button
-  if (matchMedia("(pointer: coarse)").matches && "DeviceOrientationEvent" in window) {
-    tilt();
-    if (typeof DeviceOrientationEvent.requestPermission === "function") {
-      tiltBtn.hidden = false;
-      tiltBtn.addEventListener("click", () => DeviceOrientationEvent.requestPermission()
-        .then((s) => { if (s === "granted") tiltBtn.hidden = true; }).catch(() => {}));
+      s.el.addEventListener("pointerleave", () => { s.t = [0, 0, 0, 1]; go(s); });
+      s.el.addEventListener("pointerdown", (e) => {
+        if (held()) return;
+        if (e.pointerType !== "mouse") aim(s, e, deg * 1.2);
+        s.t[3] = 0.95; go(s);
+      });
+      const up = (e) => {
+        s.t[3] = 1; s.v[3] += 0.02;                 // let go: overshoot and wobble back
+        if (e.pointerType !== "mouse") s.t[0] = s.t[1] = 0;
+        go(s);
+      };
+      s.el.addEventListener("pointerup", up);
+      s.el.addEventListener("pointercancel", up);
     }
   }
 
-  new IntersectionObserver(([e]) => { if (e.isIntersecting) load().catch(() => {}); }, { rootMargin: "600px 0px" }).observe(pit);
-  new IntersectionObserver(([e]) => {
-    visible = e.isIntersecting;
-    if (!visible) return;
-    if (engine) return run();
-    Promise.all([load(), document.fonts && document.fonts.ready]).then(build).catch(() => {});
-  }, { rootMargin: "0px 0px -20% 0px" }).observe(stage);
-  document.addEventListener("visibilitychange", () => run());
-  addEventListener("scroll", () => { if (engine && visible) run(); }, { passive: true });
-  let w0 = innerWidth;
-  addEventListener("resize", () => {
-    if (innerWidth === w0 || !engine) return;      // phones fire resize when the URL bar slides; only width matters
-    w0 = innerWidth;
-    clearTimeout(build.t);
-    build.t = setTimeout(() => { if (!grab) { items.forEach((it) => (it.el.style.transform = "")); pit.classList.remove("armed"); stage.style.height = ""; build(); } }, 300);
-  });
+  // ---------- pixels ----------
+  const icons = [...document.querySelectorAll(".px")].map((px) => ({
+    px, cells: [...px.children].map((el, i) => ({ el, i, x: 0, y: 0, vx: 0, vy: 0, r: 0, vr: 0 })).filter((c) => !c.el.classList.contains("p_")),
+  }));
+  if (icons.length) {
+    const active = new Set();
+    const step = (dt) => {
+      const damp = 0.84 ** dt;
+      for (const ic of active) {
+        let moving = false;
+        for (const c of ic.cells) {
+          c.vx = (c.vx - c.x * 0.07 * dt) * damp; c.vy = (c.vy - c.y * 0.07 * dt) * damp; c.vr = (c.vr - c.r * 0.07 * dt) * damp;
+          c.x += c.vx * dt; c.y += c.vy * dt; c.r += c.vr * dt;
+          const m = Math.abs(c.x) + Math.abs(c.y) + Math.abs(c.vx) + Math.abs(c.vy) + Math.abs(c.r) / 20;
+          moving ||= m > 0.05;
+          c.el.style.transform = m > 0.05 ? `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) rotate(${c.r.toFixed(0)}deg)` : "";
+        }
+        if (!moving) { for (const c of ic.cells) { c.x = c.y = c.vx = c.vy = c.r = c.vr = 0; c.el.style.transform = ""; } active.delete(ic); }
+      }
+      return active.size > 0;
+    };
+    const start = loop(step);
+    // kick every cell away from (cx, cy), in cell units from the icon's top left
+    const burst = (ic, power, cx = 4.5, cy = 4.5) => {
+      for (const c of ic.cells) {
+        const dx = (c.i % 10) - cx, dy = ((c.i / 10) | 0) - cy, d = Math.hypot(dx, dy) || 1, f = (power * (0.5 + Math.random())) / Math.sqrt(d);
+        c.vx += (dx / d) * f + (Math.random() - 0.5) * power * 0.3;
+        c.vy += (dy / d) * f + (Math.random() - 0.5) * power * 0.3;
+        c.vr += (Math.random() - 0.5) * power * 6;
+      }
+      active.add(ic); start();
+    };
+    const cell = (ic, e) => { const r = ic.px.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * 10 - 0.5, ((e.clientY - r.top) / r.height) * 10 - 0.5]; };
+    icons.forEach((ic) => {
+      const host = ic.px.closest(".card, .honor") || ic.px;
+      once(ic.px, () => {                          // assemble from noise as it scrolls in
+        for (const c of ic.cells) { c.x = (Math.random() - 0.5) * 70; c.y = (Math.random() - 0.5) * 70; c.r = (Math.random() - 0.5) * 180; }
+        active.add(ic); start();
+      });
+      host.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") burst(ic, 3.5); });
+      host.addEventListener("pointerdown", (e) => burst(ic, 5, ...cell(ic, e)));
+      ic.px.addEventListener("pointermove", (e) => {   // the cursor parts the pixels it passes through
+        if (e.pointerType !== "mouse") return;
+        const [px, py] = cell(ic, e);
+        for (const c of ic.cells) {
+          const dx = (c.i % 10) - px, dy = ((c.i / 10) | 0) - py, d = Math.hypot(dx, dy) || 1;
+          if (d < 2.5) { c.vx += (dx / d) * (2.5 - d) * 0.8; c.vy += (dy / d) * (2.5 - d) * 0.8; }
+        }
+        active.add(ic); start();
+      });
+    });
+  }
+
+  // ---------- string ----------
+  const tl = document.querySelector(".timeline");
+  if (tl) {
+    const N = 32, A = 40, BAND = 30, ys = new Float32Array(N), vs = new Float32Array(N);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "string");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = '<defs><linearGradient id="string-ink" gradientUnits="userSpaceOnUse"><stop offset="0" style="stop-color: var(--clay)"/><stop offset="1" style="stop-color: var(--blue)"/></linearGradient></defs><path/>';
+    tl.prepend(svg);
+    const path = svg.querySelector("path"), grad = svg.querySelector("linearGradient");
+    const lis = [...tl.querySelectorAll(":scope > li")];
+    let flat = true, L = 1, grab = null, prevW = null;
+    const layout = () => {
+      flat = getComputedStyle(tl).gridTemplateColumns.split(" ").length > 1;   // a row on desktop, a column on phones
+      L = Math.max(1, flat ? tl.clientWidth : tl.clientHeight);
+      svg.classList.toggle("down", !flat);
+      svg.setAttribute("viewBox", flat ? `0 0 ${L} ${2 * A}` : `0 0 ${2 * A} ${L}`);
+      grad.setAttribute("x2", flat ? L : 0); grad.setAttribute("y2", flat ? 0 : L);
+    };
+    const at = (u) => { const f = clamp((u / L) * (N - 1), 0, N - 1), i = Math.min(N - 2, Math.floor(f)), t = f - i; return ys[i] * (1 - t) + ys[i + 1] * t; };
+    const draw = () => {
+      let d = "";
+      for (let i = 0; i < N; i++) {
+        const u = ((i / (N - 1)) * L).toFixed(1), w = (A + ys[i]).toFixed(2);
+        d += (i ? "L" : "M") + (flat ? `${u},${w}` : `${w},${u}`);
+      }
+      path.setAttribute("d", d);
+      for (const li of lis) {                      // each dot rides the string where it crosses it
+        const w = at(flat ? li.offsetLeft + 8 : li.offsetTop + 12).toFixed(2);
+        li.style.setProperty("--sx", flat ? "0px" : `${w}px`);
+        li.style.setProperty("--sy", flat ? `${w}px` : "0px");
+      }
+    };
+    const step = (dt) => {
+      const n = Math.ceil(dt * 2), h = dt / n;     // wave equation, two sub-steps per frame for stability
+      for (let s = 0; s < n; s++) {
+        for (let i = 1; i < N - 1; i++) vs[i] = (vs[i] + (ys[i - 1] + ys[i + 1] - 2 * ys[i]) * 2.5 * h) * 0.94 ** h;
+        for (let i = 1; i < N - 1; i++) ys[i] += vs[i] * h;
+        if (grab) { ys[grab.k] = grab.w; vs[grab.k] = 0; }
+      }
+      let e = 0;
+      for (let i = 0; i < N; i++) e += Math.abs(ys[i]) + Math.abs(vs[i]);
+      if (!grab && e < 0.05 * N) { ys.fill(0); vs.fill(0); }
+      draw();
+      return !!grab || e >= 0.05 * N;
+    };
+    const start = loop(step);
+    const pluck = (u, amp) => {                    // a triangle pulled out at u, then let go
+      const k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2);
+      for (let i = 1; i < N - 1; i++) ys[i] += amp * (i <= k ? i / k : (N - 1 - i) / (N - 1 - k));
+      start();
+    };
+    const rel = (e) => {
+      const r = tl.getBoundingClientRect();
+      return flat ? { u: e.clientX - r.left, w: e.clientY - r.top - 8 } : { u: e.clientY - r.top, w: e.clientX - r.left - 8 };
+    };
+    // mouse: the string catches when the pointer crosses it, follows it, and snaps free past 30 px
+    addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      const { u, w } = rel(e), k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2), over = u > 0 && u < L && Math.abs(w) < BAND;
+      if (grab && !over) { grab = null; start(); }
+      else if (grab) { grab = { k, w }; start(); }
+      else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w }; start(); }
+      prevW = over ? w : null;
+    }, { passive: true });
+    tl.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 18 || 18); } });
+    once(tl, () => setTimeout(() => pluck(L * 0.3, 20), 500), "0px 0px -20% 0px");
+    addEventListener("resize", () => { layout(); draw(); });
+    layout(); draw();
+  }
+
+  // ---------- bars ----------
+  const chart = document.querySelector(".band .chart");
+  if (chart) {
+    const s = new Float32Array(30), v = new Float32Array(30);
+    let bars = [], last = -1;
+    const step = (dt) => {
+      const n = Math.ceil(dt), h = dt / n;
+      for (let k = 0; k < n; k++) {
+        for (let i = 0; i < 30; i++) v[i] = (v[i] + (-0.08 * s[i] + 0.12 * ((s[i - 1] || 0) + (s[i + 1] || 0) - 2 * s[i])) * h) * 0.92 ** h;
+        for (let i = 0; i < 30; i++) s[i] += v[i] * h;
+      }
+      let e = 0;
+      for (let i = 0; i < 30; i++) e += Math.abs(s[i]) + Math.abs(v[i]);
+      const live = e > 0.003;
+      if (!live) { s.fill(0); v.fill(0); }
+      bars.forEach((b, i) => b && (b.style.transform = live ? `scaleY(${(1 + s[i]).toFixed(4)})` : ""));
+      return live;
+    };
+    const start = loop(step);
+    const poke = (e) => {
+      const i = +(e.target.dataset?.i ?? -1);
+      if (i < 0 || i === last) return;
+      last = i;
+      bars = [];
+      chart.querySelectorAll(".bar").forEach((b) => { bars[+b.style.getPropertyValue("--i")] = b; });   // the chart redraws on resize
+      v[i] += 0.05;
+      start();
+    };
+    chart.addEventListener("pointermove", poke);
+    chart.addEventListener("pointerdown", (e) => { last = -1; poke(e); });
+    chart.addEventListener("pointerleave", () => { last = -1; });
+  }
 })();
