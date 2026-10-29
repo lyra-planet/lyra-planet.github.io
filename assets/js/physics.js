@@ -22,7 +22,7 @@
   const loop = (step) => {
     let on = false, last = 0;
     const tick = (t) => {
-      const dt = clamp((t - last) / 16.67, 0.25, 3);
+      const dt = clamp((t - last) / 16.67, 0.05, 3);
       last = t;
       on = step(dt);
       if (on) requestAnimationFrame(tick);
@@ -317,7 +317,9 @@
   // ---------- string ----------
   const tl = document.querySelector(".timeline");
   if (tl) {
-    const N = 32, A = 40, BAND = 22, MAX = 12, ys = new Float32Array(N), vs = new Float32Array(N), HAND = [0.25, 0.6, 1, 0.6, 0.25];
+    // Fixed sub-steps of 1/240 s whatever the screen's refresh rate: with steps that followed the frame time,
+    // 120 Hz frame jitter pumped energy into the string's fastest mode and it never settled.
+    const N = 32, A = 40, MAX = 12, H = 0.25, ys = new Float32Array(N), vs = new Float32Array(N), lap = new Float32Array(N);
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "string");
     svg.setAttribute("aria-hidden", "true");
@@ -325,7 +327,7 @@
     tl.prepend(svg);
     const path = svg.querySelector("path"), grad = svg.querySelector("linearGradient");
     const lis = [...tl.querySelectorAll(":scope > li")];
-    let flat = true, L = 1, grab = null, prevW = null;
+    let flat = true, L = 1, acc = 0, prev = null, side = 0, lastStrum = 0;
     const layout = () => {
       flat = getComputedStyle(tl).gridTemplateColumns.split(" ").length > 1;   // a row on desktop, a column on phones
       L = Math.max(1, flat ? tl.clientWidth : tl.clientHeight);
@@ -347,49 +349,54 @@
         li.style.setProperty("--sy", flat ? `${w}px` : "0px");
       }
     };
-    const step = (dt) => {
-      const n = Math.ceil(dt * 2), h = dt / n;     // wave equation, two sub-steps per frame for stability
-      for (let s = 0; s < n; s++) {
-        for (let i = 1; i < N - 1; i++) vs[i] = (vs[i] + (ys[i - 1] + ys[i + 1] - 2 * ys[i]) * 2.5 * h) * 0.94 ** h;
-        if (grab) HAND.forEach((wt, j) => {        // the hand pulls a few points toward it through a spring, never teleports them
-          const i = grab.k + j - 2;
-          if (i > 0 && i < N - 1) vs[i] = (vs[i] + (grab.w - ys[i]) * 0.5 * wt * h) * 0.7 ** (wt * h);
-        });
-        for (let i = 1; i < N - 1; i++) {
-          ys[i] += vs[i] * h;
-          if (Math.abs(ys[i]) > MAX) { ys[i] = Math.sign(ys[i]) * MAX; vs[i] *= -0.3; }   // hits a fret: bounces back and loses energy
-        }
+    const sub = () => {                            // one 1/240 s step: tension, damping that is stronger for short wiggles, motion
+      for (let i = 1; i < N - 1; i++) lap[i] = vs[i - 1] + vs[i + 1] - 2 * vs[i];
+      for (let i = 1; i < N - 1; i++) vs[i] = (vs[i] + ((ys[i - 1] + ys[i + 1] - 2 * ys[i]) * 2.5 + lap[i] * 0.3) * H) * 0.94 ** H;
+      for (let i = 1; i < N - 1; i++) {
+        ys[i] += vs[i] * H;
+        if (Math.abs(ys[i]) > MAX) { ys[i] = Math.sign(ys[i]) * MAX; vs[i] = 0; }   // safety stop; a strum never gets here
       }
+    };
+    const step = (dt) => {
+      acc = Math.min(acc + dt, 12 * H);
+      while (acc >= H) { acc -= H; sub(); }
       let e = 0;
       for (let i = 0; i < N; i++) e += Math.abs(ys[i]) + Math.abs(vs[i]);
-      if (!grab && e < 0.05 * N) { ys.fill(0); vs.fill(0); }
+      const live = e >= 0.05 * N;
+      if (!live) { ys.fill(0); vs.fill(0); acc = 0; }
       draw();
-      return !!grab || e >= 0.05 * N;
+      return live;
     };
     const start = loop(step);
-    const pluck = (u, amp) => {                    // a triangle pulled out at u, then let go
+    // a strum: velocity into a few points around u, smooth, so it rings as one wave instead of a kink
+    const strum = (u, speed) => {
       const k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2);
-      for (let i = 1; i < N - 1; i++) ys[i] = clamp(ys[i] + amp * (i <= k ? i / k : (N - 1 - i) / (N - 1 - k)), -MAX, MAX);
+      [0.25, 0.6, 1, 0.6, 0.25].forEach((wt, j) => { const i = k + j - 2; if (i > 0 && i < N - 1) vs[i] += speed * wt; });
       start();
     };
     const rel = (e) => {
       const r = tl.getBoundingClientRect();
       return flat ? { u: e.clientX - r.left, w: e.clientY - r.top - 8 } : { u: e.clientY - r.top, w: e.clientX - r.left - 8 };
     };
-    // mouse: the string catches when the pointer crosses it, follows it, and snaps free past BAND.
-    // Only real motion counts: after a wheel scroll Chrome sends a pointermove with no movement, and the
-    // line sliding under a still pointer is not a pluck.
+    // mouse: going from one side of the line to the other strums it, harder the faster the pointer moves.
+    // The 3 px either side of the line is a dead zone, so a hand resting on a dot never strums.
+    // Only real motion counts: Chrome sends a pointermove with no movement after a wheel scroll.
     addEventListener("pointermove", (e) => {
       if (e.pointerType !== "mouse" || (!e.movementX && !e.movementY)) return;
-      const { u, w } = rel(e), k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2), over = u > 0 && u < L && Math.abs(w) < BAND;
-      if (grab && !over) { grab = null; start(); }
-      else if (grab) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
-      else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
-      prevW = over ? w : null;
+      const p = rel(e), was = prev;
+      prev = p.u > 0 && p.u < L && Math.abs(p.w) < 40 ? p : null;
+      if (!prev) { side = 0; return; }
+      const s = p.w > 3 ? 1 : p.w < -3 ? -1 : 0;
+      if (!s) return;
+      if (side && s !== side && was && performance.now() - lastStrum >= 80) {
+        lastStrum = performance.now();
+        strum(p.u, s * clamp(Math.abs(p.w - was.w) * 0.8, 3, 9));
+      }
+      side = s;
     }, { passive: true });
-    addEventListener("scroll", () => { prevW = null; if (grab) { grab = null; start(); } }, { passive: true });   // scrolling pulls the string off the hand
-    // touch: only a tap plucks; a swipe that starts on the timeline is a scroll
-    tl.addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 10 || 10); } });
+    addEventListener("scroll", () => { prev = null; side = 0; }, { passive: true });
+    // touch: only a tap strums; a swipe that starts on the timeline is a scroll
+    tl.addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) strum(rel(e).u, rel(e).w < 0 ? -7 : 7); });
     addEventListener("resize", () => { layout(); draw(); });
     layout(); draw();
   }
