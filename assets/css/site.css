@@ -218,7 +218,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
   animation: drift 30s linear infinite; }
 @keyframes drift { to { background-position: 22px 22px; } }
 .progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 50; pointer-events: none; }
-.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--clay), var(--blue)); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.progress i { display: block; height: 100%; will-change: transform; background: linear-gradient(90deg, var(--clay), var(--blue)); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
 
 /* hero */
 .home .hero { padding-block: 12px 0; }
@@ -235,7 +235,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .badges { list-style: none; padding: 0; margin: 26px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .badges li { display: flex; flex-direction: column; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .badges b { font: 600 15px/1.3 var(--serif); } .badges span { font: 11.5px/1.4 var(--mono); color: var(--muted); }
-.hero-art img { transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.hero-art img { transition: transform .6s cubic-bezier(.2,.8,.2,1); will-change: transform; }   /* own layer: the animated planet repaints itself, not the page */
 .hero-art:hover img { transform: scale(1.03) rotate(-1deg); }
 
 /* live usage band: a dark terminal strip in both themes; local tokens repaint the chart for it */
@@ -243,8 +243,10 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
   background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 22px; padding: 22px 26px 16px; margin-top: 44px; box-shadow: 0 30px 60px -40px rgba(20,20,19,.7); }
 .band-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; font: 13px var(--mono); color: var(--muted); }
 .band-head p { margin: 0; } .band-head b { color: var(--ink); font-weight: 500; } .band-head a { color: var(--clay-text); }
-.live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5fbf7f; margin-right: 10px; animation: pulse 2s ease-out infinite; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(95,191,127,.6); } 70%, 100% { box-shadow: 0 0 0 9px rgba(95,191,127,0); } }
+.live { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5fbf7f; margin-right: 10px; }
+/* the pulse is a ring that scales and fades: transform and opacity run on the compositor, a box-shadow animation repaints every frame */
+.live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #5fbf7f; animation: pulse 2s ease-out infinite; }
+@keyframes pulse { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
 .band .usage { background: none; border: 0; padding: 18px 0 0; }
 .band .tip { background: #faf9f5; color: #141413; }
 .band .table summary { color: var(--muted); }
@@ -319,7 +321,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 
 /* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
 .field { display: none; }
-.physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+.physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; will-change: transform; }
 .physics body.home::before { display: none; }
 .physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .physics .title span.held { cursor: grabbing; }
@@ -349,7 +351,6 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 /* the usage band breaks apart: its panel stays as an outline, its pieces fall as dark tiles */
 .gravity .band { background: transparent; border-style: dashed; border-color: rgba(135,134,127,.45); box-shadow: none; }
 .gravity .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 14px 30px -12px rgba(20,20,19,.55); }
-.gravity.grabbing, .gravity.grabbing * { cursor: grabbing !important; }
 .boom { z-index: 70; }
 
 /* scroll reveal */
@@ -370,7 +371,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 }
 @media (max-width: 480px) { .hl b { font-size: 36px; } .hl { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  body.home::before, .js .title span, .js .rise, .caret, .live, .js .reveal.in .stagger, .band svg.grow .bar { animation: none; }
+  body.home::before, .js .title span, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none; }
   .js .reveal, .timeline::before, .hero-art img { transition: none; }
   .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1; transform: none; }
 }

@@ -17,6 +17,10 @@
   const held = () => root.classList.contains("gravity");     // gravity mode owns element transforms while it is on
   let lastPointer = "mouse";
   addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
+  // scroll position, read once per scroll event: reading scrollY inside a frame, after other loops wrote
+  // transforms, forces a synchronous style and layout pass
+  let SY = scrollY;
+  addEventListener("scroll", () => { SY = scrollY; }, { capture: true, passive: true });
 
   // rAF loop that stops when step(dt) returns false; dt is in 60 fps frames, so 120 Hz screens run at the same speed
   const loop = (step) => {
@@ -44,27 +48,30 @@
     const key = (c, r) => r * 4096 + c;
     const get = (c, r) => { const k = key(c, r); let d = live.get(k); if (!d) live.set(k, (d = { ox: 0, oy: 0, vx: 0, vy: 0 })); return d; };
     const batches = Array.from({ length: 32 }, () => []);   // 4 colours x 8 alpha levels, one fill() each
-    let W = 0, H = 0, styles = [], waves = [], ptr = null, sy = scrollY, sv = 0, gy = 0, gv = 0;
+    let W = 0, H = 0, styles = [], waves = [], ptr = null, sy = SY, sv = 0, gy = 0, gv = 0, fx = [], whole = true, drawnSY = null, lastBox = null;
     const paint = () => {
       const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), a = hex(css("--axis")), c = hex(css("--clay"));
       styles = [0, 0.4, 0.7, 1].flatMap((t) => Array.from({ length: 8 }, (_, l) => `rgba(${a.map((v, i) => Math.round(v + (c[i] - v) * t))},${(l + 1) / 8})`));
     };
-    const size = () => { W = innerWidth; H = innerHeight; field.width = W * DPR; field.height = H * DPR; };
+    const size = () => {
+      W = innerWidth; H = innerHeight; field.width = W * DPR; field.height = H * DPR; whole = true;
+      fx = Array.from({ length: Math.ceil(W / G) + 2 }, (_, c) => ((c * G + G / 2 - 0.75 * W) / (0.8 * W)) ** 2);
+    };
     // faint everywhere, brightest in an ellipse behind the hero
-    const glow = (x, y) => { const h = Math.min(H, 900); return Math.max(0.3, 1 - Math.hypot((x - 0.75 * W) / (0.8 * W), (y - 0.25 * h) / (0.7 * h)) / 0.75); };
-    const view = () => ({ top: Math.floor(scrollY / G), rows: Math.ceil(H / G) + 1, cols: Math.ceil(W / G) });
+    const glow = (c, y) => { const h = Math.min(H, 900); return Math.max(0.3, 1 - Math.sqrt(fx[c] + ((y - 0.25 * h) / (0.7 * h)) ** 2) / 0.75); };
+    const view = () => ({ top: Math.floor(SY / G), rows: Math.ceil(H / G) + 1, cols: Math.ceil(W / G) });
     const sheet = (x) => 0.55 + 0.45 * Math.sin((Math.PI * x) / W);   // the middle of the sheet lags more than its edges
 
     const step = (dt) => {
       const { top, rows, cols } = view(), damp = 0.86 ** dt;
       // the grid is fixed to the page: when a scroll speeds up or stops, the sheet lags and overshoots
-      const v = scrollY - sy, a = v - sv;
-      sy = scrollY; sv = v;
+      const v = SY - sy, a = v - sv;
+      sy = SY; sv = v;
       if (Math.abs(a) > 1) gv += clamp(a, -40, 40) * 0.12;
       gv = (gv - 0.05 * gy * dt) * damp; gy = clamp(gy + gv * dt, -24, 24);
       if (Math.abs(gy) + Math.abs(gv) < 0.05) gy = gv = 0;
       if (ptr) {
-        const px = ptr.x, py = ptr.y + scrollY;
+        const px = ptr.x, py = ptr.y + SY;
         for (let r = Math.max(0, Math.floor((py - R) / G)); r <= Math.ceil((py + R) / G); r++)
           for (let c = Math.max(0, Math.floor((px - R) / G)); c <= Math.min(cols, Math.ceil((px + R) / G)); c++) {
             const d0 = live.get(key(c, r));
@@ -99,18 +106,37 @@
       return moving;
     };
 
+    // Repaint everything after a scroll or while the sheet sways; otherwise only the box around displaced dots
+    // (this frame's and last frame's), so pushing dots with the pointer touches a few hundred pixels, not the screen.
     const draw = () => {
       const { top, rows, cols } = view();
+      let box = null;
+      for (const k of live.keys()) {
+        const r = Math.floor(k / 4096), x = (k - r * 4096) * G + G / 2, y = r * G + G / 2 - SY;
+        box = box ? [Math.min(box[0], x), Math.min(box[1], y), Math.max(box[2], x), Math.max(box[3], y)] : [x, y, x, y];
+      }
+      const full = whole || SY !== drawnSY || gy !== 0 || sv !== 0;
+      let x0 = 0, y0 = 0, x1 = W, y1 = H;
+      if (!full) {
+        const u = box && lastBox ? [Math.min(box[0], lastBox[0]), Math.min(box[1], lastBox[1]), Math.max(box[2], lastBox[2]), Math.max(box[3], lastBox[3])] : box || lastBox;
+        lastBox = box;
+        if (!u) return;
+        [x0, y0, x1, y1] = [Math.max(0, u[0] - 24), Math.max(0, u[1] - 24), Math.min(W, u[2] + 24), Math.min(H, u[3] + 24)];
+      }
+      lastBox = box; whole = false; drawnSY = SY;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      ctx.clearRect(0, 0, W, H);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
+      ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
       for (const b of batches) b.length = 0;
-      for (let c = 0; c <= cols; c++) {
+      const r0 = Math.max(top, Math.floor((y0 + SY) / G) - 1), r1 = Math.min(top + rows, Math.ceil((y1 + SY) / G) + 1);
+      for (let c = Math.max(0, Math.floor(x0 / G) - 1); c <= Math.min(cols, Math.ceil(x1 / G) + 1); c++) {
         const x = c * G + G / 2, lag = gy * sheet(x);
-        for (let r = top; r <= top + rows; r++) {
+        for (let r = r0; r <= r1; r++) {
           const y = r * G + G / 2, d = live.get(key(c, r)), e = d ? Math.abs(d.ox) + Math.abs(d.oy) : 0;
-          const al = Math.min(7, Math.round(Math.min(1, glow(x, y) + e / 50) * 8) - 1);
+          const al = Math.min(7, Math.round(Math.min(1, glow(c, y) + e / 50) * 8) - 1);
           if (al < 0) continue;
-          batches[Math.min(3, (e / 3.5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - scrollY + lag + (d ? d.oy : 0));
+          batches[Math.min(3, (e / 3.5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - SY + lag + (d ? d.oy : 0));
         }
       }
       batches.forEach((pts, i) => {              // colour runs from grid grey to clay as a dot is pushed further
@@ -121,6 +147,7 @@
         for (let j = 0; j < pts.length; j += 2) ctx.rect(pts[j] - h, pts[j + 1] - h, s, s);
         ctx.fill();
       });
+      ctx.restore();
     };
 
     const start = loop(step);
@@ -131,7 +158,7 @@
     const wave = (x, y, target) => {
       if (target?.closest?.(OWN) || performance.now() - lastWave < 120) return;
       lastWave = performance.now();
-      waves = [...waves.slice(-2), { x, y: y + scrollY, t: 0 }];      // at most three rings at once
+      waves = [...waves.slice(-2), { x, y: y + SY, t: 0 }];      // at most three rings at once
       start();
     };
     addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") point(e.clientX, e.clientY); }, { passive: true });
@@ -143,8 +170,23 @@
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) wave(e.clientX, e.clientY, e.target); }, { passive: true });
     addEventListener("scroll", start, { passive: true });
     addEventListener("resize", () => { size(); start(); });
-    onTheme(() => { paint(); draw(); });
+    onTheme(() => { paint(); whole = true; draw(); });
     size(); paint(); draw();
+  }
+
+  // ---------- planet ----------
+  // The pixel planet is an animated SVG: it changes every frame, so it repaints every frame. Off screen, and in
+  // gravity mode (where it tumbles anyway), it shows a still frame instead. Coming back restarts the animation.
+  const planets = [...document.querySelectorAll(".hero-art img[data-still]")];
+  if (planets.length) {
+    let seen = true;
+    planets.forEach((im) => (im.dataset.live = im.getAttribute("src")));
+    const set = () => planets.forEach((im) => {
+      const want = !seen || held() ? im.dataset.still : im.dataset.live;
+      if (im.getAttribute("src") !== want) im.setAttribute("src", want);
+    });
+    new IntersectionObserver(([e]) => { seen = e.isIntersecting; set(); }).observe(planets[0].closest("figure"));
+    document.addEventListener("gravitychange", set);
   }
 
   // ---------- letters ----------
@@ -327,13 +369,14 @@
     tl.prepend(svg);
     const path = svg.querySelector("path"), grad = svg.querySelector("linearGradient");
     const lis = [...tl.querySelectorAll(":scope > li")];
-    let flat = true, L = 1, acc = 0, prev = null, side = 0, lastStrum = 0;
+    let flat = true, L = 1, acc = 0, prev = null, side = 0, lastStrum = 0, at0 = [];
     const layout = () => {
       flat = getComputedStyle(tl).gridTemplateColumns.split(" ").length > 1;   // a row on desktop, a column on phones
       L = Math.max(1, flat ? tl.clientWidth : tl.clientHeight);
       svg.classList.toggle("down", !flat);
       svg.setAttribute("viewBox", flat ? `0 0 ${L} ${2 * A}` : `0 0 ${2 * A} ${L}`);
       grad.setAttribute("x2", flat ? L : 0); grad.setAttribute("y2", flat ? 0 : L);
+      at0 = lis.map((li) => (flat ? li.offsetLeft + 8 : li.offsetTop + 12));   // where each dot sits on the string; read once, not per frame
     };
     const at = (u) => { const f = clamp((u / L) * (N - 1), 0, N - 1), i = Math.min(N - 2, Math.floor(f)), t = f - i; return ys[i] * (1 - t) + ys[i + 1] * t; };
     const draw = () => {
@@ -343,11 +386,11 @@
         d += (i ? "L" : "M") + (flat ? `${u},${w}` : `${w},${u}`);
       }
       path.setAttribute("d", d);
-      for (const li of lis) {                      // each dot rides the string where it crosses it
-        const w = at(flat ? li.offsetLeft + 8 : li.offsetTop + 12).toFixed(2);
+      lis.forEach((li, j) => {                     // each dot rides the string where it crosses it
+        const w = at(at0[j]).toFixed(2);
         li.style.setProperty("--sx", flat ? "0px" : `${w}px`);
         li.style.setProperty("--sy", flat ? `${w}px` : "0px");
-      }
+      });
     };
     const sub = () => {                            // one 1/240 s step: tension, damping that is stronger for short wiggles, motion
       for (let i = 1; i < N - 1; i++) lap[i] = vs[i - 1] + vs[i + 1] - 2 * vs[i];

@@ -19,6 +19,22 @@
   });
   let lastPointer = "mouse";                   // Safari's click has no pointerType; remember what pressed
   addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
+  let SY = scrollY;                            // read in the scroll event, never inside a frame (that forces a layout)
+  addEventListener("scroll", () => { SY = scrollY; }, { capture: true, passive: true });
+  // Matter steps at a fixed 60 Hz. Each frame is drawn between the last two steps, so motion stays smooth on
+  // 120 Hz screens instead of moving every other frame.
+  const advance = (engine, bodies, acc) => {
+    while (acc >= STEP) {
+      for (const b of bodies) { b.px = b.position.x; b.py = b.position.y; b.pa = b.angle; }
+      M.Engine.update(engine, STEP);
+      acc -= STEP;
+    }
+    return acc;
+  };
+  const pose = (b, k) => (b.px === undefined || b.isSleeping
+    ? [b.position.x, b.position.y, b.angle]
+    : [b.px + (b.position.x - b.px) * k, b.py + (b.position.y - b.py) * k, b.pa + (b.angle - b.pa) * k]);
+  const place = (b, p) => { M.Body.setPosition(b, p); b.px = undefined; };   // a teleport is not drawn as a streak
   const engines = new Set();                  // every live engine follows the same tilt
   const tiltG = { x: 0, y: 1 };
 
@@ -55,7 +71,12 @@
     const layer = document.createElement("div");
     layer.className = "heap";
     let engine = null, items = [], bodies = [], walls = null, grab = null, grabbed = false, ceiling = null, born = 0, few = false;
-    let running = false, last = 0, acc = 0, sy = scrollY, sv = 0, W = innerWidth, H = innerHeight;
+    let running = false, last = 0, acc = 0, sy = SY, sv = 0, W = innerWidth, H = innerHeight;
+    let box = { w: 0, h: 0, bl: 0, bt: 0 };      // the window and the gravity button's corner, measured on resize only
+    const measure = () => {
+      const g = gbtn && gbtn.getBoundingClientRect();
+      box = { w: layer.clientWidth, h: layer.clientHeight, bl: g ? g.left : 0, bt: g ? g.top : 0, bh: g ? g.height : 0 };
+    };
     const T = 400, BIG = 20000, small = () => innerWidth < 640 || innerHeight < 520;
 
     const build = () => {
@@ -66,7 +87,8 @@
       engines.add(engine);
       ceiling = null; born = performance.now();
       if (!layer.isConnected) { document.body.append(layer); layer.append(stage); pit.classList.add("armed"); }
-      W = layer.clientWidth; H = layer.clientHeight;      // the layer's own box: innerWidth would count the scrollbar
+      measure();
+      W = box.w; H = box.h;                       // the layer's own box: innerWidth would count the scrollbar
       few = small();                              // phones (either way up) get ten chips, so the pile stays low
       const all = [...stage.querySelectorAll("li")];
       all.forEach((el, i) => { el.hidden = few && i >= 10; el.style.transform = ""; });
@@ -80,9 +102,9 @@
       // the gravity button is furniture: a block from the button to the window's corner, so chips pile on it and
       // can't slip into the gap beneath it. The button is pinned to the corner, so the block keeps its size.
       if (gbtn) {
-        const r = gbtn.getBoundingClientRect(), w = W + 40 - r.left, h = H + 40 - r.top;
-        walls.button = Bodies.rectangle(r.left + w / 2, r.top + h / 2, w, h, { ...wall, chamfer: { radius: [r.height / 2, 0, 0, 0] } });
-        walls.button.centre = () => { const g = gbtn.getBoundingClientRect(); return { x: g.left + w / 2, y: g.top + h / 2 }; };
+        const w = W + 40 - box.bl, h = H + 40 - box.bt;
+        walls.button = Bodies.rectangle(box.bl + w / 2, box.bt + h / 2, w, h, { ...wall, chamfer: { radius: [box.bh / 2, 0, 0, 0] } });
+        walls.button.centre = () => ({ x: box.bl + w / 2, y: box.bt + h / 2 });
       }
       Composite.add(engine.world, Object.values(walls));
       let y = 0;
@@ -103,13 +125,13 @@
     const lid = () => {
       if (ceiling) return;
       if (performance.now() - born < 4000 && !bodies.every((b) => b.bounds.min.y > 0)) return;
-      for (const b of bodies) if (b.bounds.min.y < 0) M.Body.setPosition(b, { x: b.position.x, y: 40 });
+      for (const b of bodies) if (b.bounds.min.y < 0) place(b, { x: b.position.x, y: 40 });
       ceiling = M.Bodies.rectangle(W / 2, -T / 2, BIG, T, { isStatic: true });
       M.Composite.add(engine.world, ceiling);
     };
     // walls follow the window edges at up to 25 px a frame, so a resize pushes the chips instead of teleporting past them
     const follow = () => {
-      const tx = layer.clientWidth + T / 2, ty = layer.clientHeight + T / 2, r = walls.right.position, f = walls.floor.position;
+      const tx = box.w + T / 2, ty = box.h + T / 2, r = walls.right.position, f = walls.floor.position;
       if (walls.button) {
         const { x: gx, y: gy } = walls.button.centre(), b = walls.button.position;
         if (b.x !== gx || b.y !== gy) M.Body.setPosition(walls.button, { x: b.x + clamp(gx - b.x, -25, 25), y: b.y + clamp(gy - b.y, -25, 25) });
@@ -126,14 +148,14 @@
       for (const b of bodies) {
         const p = b.position;
         if (p.x > -60 && p.x < W + 60 && p.y < H + 60 && !(ceiling && p.y < -60)) continue;
-        M.Body.setPosition(b, { x: W / 2, y: 40 });
+        place(b, { x: W / 2, y: 40 });
         M.Body.setVelocity(b, { x: 0, y: 0 });
       }
     };
     // scrolling moves the window over the page: when it speeds up downward the chips feel lighter, and hop
     const inertia = () => {
-      const v = scrollY - sy, a = v - sv;
-      sy = scrollY; sv = v;
+      const v = SY - sy, a = v - sv;
+      sy = SY; sv = v;
       if (Math.abs(a) < 1.5) return;
       for (const b of bodies) {
         M.Sleeping.set(b, false);
@@ -141,25 +163,27 @@
       }
     };
     const sync = () => {
+      const k = acc / STEP;
       for (const it of items) {
         const b = it.body;
         if (b.isSleeping && it.drawn) continue;
-        it.drawn = true;
-        it.el.style.transform = `translate3d(${(b.position.x - it.w / 2).toFixed(1)}px, ${(b.position.y - it.h / 2).toFixed(1)}px, 0) rotate(${b.angle.toFixed(3)}rad)`;
+        it.drawn = b.isSleeping;                  // draw once more after it falls asleep, at its exact resting pose
+        const [x, y, a] = pose(b, k);
+        it.el.style.transform = `translate3d(${(x - it.w / 2).toFixed(1)}px, ${(y - it.h / 2).toFixed(1)}px, 0) rotate(${a.toFixed(3)}rad)`;
       }
     };
     const tick = (t) => {
       if (document.hidden) { running = false; return; }
       acc += Math.min(100, t - last); last = t;
       const moved = follow();
-      while (acc >= STEP) { M.Engine.update(engine, STEP); acc -= STEP; }
+      acc = advance(engine, bodies, acc);
       inertia(); lid(); rescue(); sync();
       if (!grab && !moved && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
       requestAnimationFrame(tick);
     };
     const run = () => {
       if (running || !engine) return;
-      running = true; last = performance.now(); acc = 0; sy = scrollY; sv = 0;
+      running = true; last = performance.now(); acc = 0; sy = SY; sv = 0;
       requestAnimationFrame(tick);
     };
 
@@ -213,6 +237,7 @@
     addEventListener("scroll", () => run(), { passive: true });
     addEventListener("resize", () => {
       if (!engine) return;
+      measure();
       if (small() !== few && !grab) { clearTimeout(build.t); build.t = setTimeout(build, 300); return; }   // crossed the phone breakpoint: new set of chips
       run();
     });
@@ -252,24 +277,26 @@
     const { Engine, Bodies, Composite, Body } = M;
     homing++;                                    // cancel a restore that is still running
     root.classList.add("gravity");               // physics.js lets go of its transforms; reveals and entrances are forced to their end state
+    document.dispatchEvent(new Event("gravitychange"));
     const all = [...document.querySelectorAll(PARTS)];
     all.forEach((el) => (el.style.transform = ""));
-    const W = innerWidth, H = innerHeight;
+    const W = innerWidth, H = innerHeight, rect = new Map();
+    // read every box first and write nothing until done: a write between reads makes the next read restyle the whole page
     const els = all
-      .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < H; })
+      .filter((el) => { const r = el.getBoundingClientRect(); rect.set(el, r); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < H; })
       .filter((el, _, arr) => !arr.some((o) => o !== el && o.contains(el)));
     const engine = Engine.create({ enableSleeping: true });
     engine.gravity.x = tiltG.x; engine.gravity.y = tiltG.y;
     const items = els.map((el) => {
-      const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const r = rect.get(el), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const body = Bodies.rectangle(cx, cy, r.width, r.height, {
         chamfer: { radius: Math.max(0, Math.min(14, r.height / 2 - 1, r.width / 2 - 1)) },
         restitution: 0.2, friction: 0.4, frictionAir: 0.012, density: 0.001,
       });
       Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.03);   // a nudge, so a perfect stack still topples
-      el.style.willChange = "transform";                               // its own layer: moving it then costs no repaint
       return { el, body, cx, cy, drawn: false };
     });
+    items.forEach((it) => (it.el.style.willChange = "transform"));   // own layers: moving them then costs no repaint
     const top = Math.min(0, ...items.map((it) => it.body.bounds.min.y)) - 60, T = 400, wall = { isStatic: true };
     Composite.add(engine.world, [
       Bodies.rectangle(W / 2, H + T / 2, W + 2 * T, T, wall),
@@ -279,7 +306,7 @@
       ...items.map((it) => it.body),
     ]);
     engines.add(engine);
-    G = { engine, items, bodies: items.map((it) => it.body), W, H, y: scrollY, grab: null, moved: false, from: null, running: false, last: 0, acc: 0 };
+    G = { engine, items, bodies: items.map((it) => it.body), W, H, y: SY, grab: null, moved: false, from: null, running: false, last: 0, acc: 0 };
     listen(true);
     gbtn.setAttribute("aria-pressed", "true");
     gbtn.querySelector("span").textContent = "restore";
@@ -289,12 +316,14 @@
   const gTick = (t) => {
     if (!G || !G.running) return;
     G.acc += Math.min(100, t - G.last); G.last = t;
-    while (G.acc >= STEP) { M.Engine.update(G.engine, STEP); G.acc -= STEP; }
+    G.acc = advance(G.engine, G.bodies, G.acc);
+    const k = G.acc / STEP;
     for (const it of G.items) {
       const b = it.body;
       if (b.isSleeping && it.drawn) continue;
-      it.drawn = true;
-      it.el.style.transform = `translate(${(b.position.x - it.cx).toFixed(1)}px, ${(b.position.y - it.cy).toFixed(1)}px) rotate(${b.angle.toFixed(3)}rad)`;
+      it.drawn = b.isSleeping;
+      const [x, y, a] = pose(b, k);
+      it.el.style.transform = `translate(${(x - it.cx).toFixed(1)}px, ${(y - it.cy).toFixed(1)}px) rotate(${a.toFixed(3)}rad)`;
     }
     if (!G.grab && G.bodies.every((b) => b.isSleeping)) { G.running = false; return; }
     requestAnimationFrame(gTick);
@@ -313,7 +342,8 @@
     e.preventDefault();
     G.from = p;
     G.grab = grabAt(G.engine, b, p);
-    root.classList.add("grabbing");
+    G.held = G.items.find((it) => it.body === b).el;
+    G.held.style.cursor = "grabbing";            // only the held element: a class on <html> would restyle the whole page
     gRun();
   }
   function move(e) {
@@ -327,7 +357,7 @@
     cap(G.grab.bodyB, 40);
     M.Composite.remove(G.engine.world, G.grab);
     G.grab = null;
-    root.classList.remove("grabbing");
+    G.held.style.cursor = "";
   }
   // a drag is not a click; a click on empty space is a kick; a clean click on a link still opens it
   function click(e) {
@@ -349,7 +379,7 @@
     engines.delete(engine);
     G = null;
     listen(false);
-    root.classList.remove("grabbing");
+    items.forEach((it) => (it.el.style.cursor = ""));
     gbtn.setAttribute("aria-pressed", "false");
     gbtn.querySelector("span").textContent = "gravity";
     const st = items.map(({ el, body: b, cx, cy }) => ({
@@ -371,6 +401,7 @@
       if (moving) return requestAnimationFrame(home);
       st.forEach((s) => { s.el.style.transform = ""; s.el.style.willChange = ""; });
       root.classList.remove("gravity");
+      document.dispatchEvent(new Event("gravitychange"));
     };
     requestAnimationFrame(home);
   }
