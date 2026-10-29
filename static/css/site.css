@@ -296,14 +296,28 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .honor .px { flex: none; width: 36px; height: 36px; } .honor p { margin: 0; font-size: 16px; line-height: 1.4; }
 .honor:hover .px { animation: wiggle .6s ease; } @keyframes wiggle { 30% { transform: rotate(-10deg); } 60% { transform: rotate(8deg); } }
 
-/* stack marquee */
-.marquee { margin-top: 64px; overflow: hidden; -webkit-mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
-.track { display: flex; width: max-content; animation: marquee 50s linear infinite; }
-.marquee:hover .track { animation-play-state: paused; }
-.row { display: flex; gap: 10px; padding-right: 10px; }
-.row span { font: 13.5px var(--mono); padding: 7px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface); white-space: nowrap; }
-.row span:nth-child(3n) { border-color: var(--clay); color: var(--clay-text); } .row span:nth-child(5n) { border-color: var(--blue); }
-@keyframes marquee { to { transform: translateX(-50%); } }
+/* stack box: a plain wrapped list until physics.js turns it into a Matter.js world */
+.stage { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.stage li { font: 13.5px/1.3 var(--mono); padding: 7px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface); white-space: nowrap; }
+.stage li:nth-child(3n) { border-color: var(--clay); color: var(--clay-text); } .stage li:nth-child(5n) { border-color: var(--blue); }
+.armed .stage { display: block; position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 22px;
+  background: radial-gradient(var(--grid) 1px, transparent 1.3px) 0 0 / 22px 22px, var(--inset); }
+.armed .stage li { position: absolute; left: 0; top: 0; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  box-shadow: 0 6px 14px -10px rgba(20,20,19,.5); }
+.armed .stage.over { cursor: grab; } .armed .stage.grabbing, .armed .stage.grabbing li { cursor: grabbing; }
+.boom { position: absolute; width: 0; height: 0; border: 2px solid var(--clay); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); animation: boom .55s ease-out forwards; }
+@keyframes boom { to { width: 300px; height: 300px; opacity: 0; } }
+.pit-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 0; font: 12px var(--mono); color: var(--muted); }
+.pit-hint span { display: none; } .physics .pit-hint .fine { display: inline; }
+.tilt { font: 500 12px var(--mono); padding: 6px 12px; border-radius: 99px; border: 1px solid var(--clay); background: var(--surface); color: var(--clay-text); cursor: pointer; }
+@media (pointer: coarse) { .physics .pit-hint .fine { display: none; } .physics .pit-hint .coarse { display: inline; } .stage li { font-size: 12.5px; padding: 6px 12px; } }
+
+/* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
+.field { display: none; }
+.physics .field { display: block; position: absolute; left: 0; top: 0; width: 100%; height: min(100vh, 900px); z-index: -1; pointer-events: none; }
+.physics body.home::before { display: none; }
+.physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.physics .title span.held { cursor: grabbing; }
 
 /* scroll reveal */
 .js .reveal { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
@@ -323,7 +337,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 }
 @media (max-width: 480px) { .hl b { font-size: 36px; } .hl { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  body.home::before, .track, .js .title span, .js .rise, .caret, .live, .js .reveal.in .stagger, .band svg.grow .bar { animation: none; }
+  body.home::before, .js .title span, .js .rise, .caret, .live, .js .reveal.in .stagger, .band svg.grow .bar { animation: none; }
   .js .reveal, .timeline::before, .hero-art img { transition: none; }
   .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1; transform: none; }
 }

@@ -1,6 +1,7 @@
 {{ define "main" }}
 {{ $cv := site.Data.cv }}
 <div class="progress" aria-hidden="true"><i></i></div>
+<canvas class="field" aria-hidden="true"></canvas>
 
 <section class="hero">
   <div class="hero-text">
@@ -104,8 +105,12 @@
   </div>
 </section>
 
-<section class="marquee reveal" aria-label="Stack">
-  <div class="track">{{ range (slice 1 2) }}<div class="row">{{ range $cv.stack }}<span>{{ . }}</span>{{ end }}</div>{{ end }}</div>
+<section class="reveal">
+  <h2 class="label">// stack</h2>
+  <div class="pit" data-engine="{{ "js/vendor/matter-0.20.0.min.js" | relURL }}">
+    <ul class="stage" aria-label="Tools I work with">{{ range $cv.stack }}<li>{{ . }}</li>{{ end }}</ul>
+    <p class="pit-hint"><span class="fine">drag · throw · click empty space to kick · scroll to shake</span><span class="coarse">drag · flick · tap to kick · tilt your phone</span><button class="tilt" type="button" hidden>enable tilt</button></p>
+  </div>
 </section>
 
 <section class="reveal">
@@ -118,4 +123,5 @@
   </ul>
   <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a> &nbsp; <a href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV →</a></p>
 </section>
+<script src="{{ "js/physics.js" | relURL }}" defer></script>
 {{ end }}
