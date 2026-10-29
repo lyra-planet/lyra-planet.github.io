@@ -61,7 +61,7 @@
       const v = scrollY - sy, a = v - sv;
       sy = scrollY; sv = v;
       if (Math.abs(a) > 1) gv += clamp(a, -40, 40) * 0.12;
-      gv = (gv - 0.05 * gy * dt) * damp; gy += gv * dt;
+      gv = (gv - 0.05 * gy * dt) * damp; gy = clamp(gy + gv * dt, -24, 24);
       if (Math.abs(gy) + Math.abs(gv) < 0.05) gy = gv = 0;
       if (ptr) {
         const px = ptr.x, py = ptr.y + scrollY;
@@ -71,26 +71,26 @@
             const dx = c * G + G / 2 + (d0 ? d0.ox : 0) - px, dy = r * G + G / 2 + (d0 ? d0.oy : 0) - py;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             if (dist >= R) continue;
-            const f = (1 - dist / R) ** 2 * 1.5 * dt, d = d0 || get(c, r);
+            const f = (1 - dist / R) ** 2 * 0.9 * dt, d = d0 || get(c, r);
             d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
           }
       }
-      for (const w of waves) {                   // a ring 36 px wide moving out at 9 px per frame
+      for (const w of waves) {                   // a ring 36 px wide moving out at 8 px per frame
         w.t += dt;
-        const rad = w.t * 9, fade = 1 - w.t / 70, reach = rad + 36;
+        const rad = w.t * 8, fade = 1 - w.t / 55, reach = rad + 36;
         for (let r = Math.max(top, Math.floor((w.y - reach) / G)); r <= Math.min(top + rows, Math.ceil((w.y + reach) / G)); r++)
           for (let c = Math.max(0, Math.floor((w.x - reach) / G)); c <= Math.min(cols, Math.ceil((w.x + reach) / G)); c++) {
             const dx = c * G + G / 2 - w.x, dy = r * G + G / 2 - w.y, dist = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.abs(dist - rad);
             if (k >= 36) continue;
-            const f = (1 - k / 36) * 2.2 * fade * dt, d = get(c, r);
+            const f = (1 - k / 36) * 1.0 * fade * dt, d = get(c, r);
             d.vx += (dx / dist) * f; d.vy += (dy / dist) * f;
           }
       }
-      waves = waves.filter((w) => w.t < 70);
+      waves = waves.filter((w) => w.t < 55);
       let moving = waves.length > 0 || v !== 0 || gy !== 0;
       for (const [k, d] of live) {
         d.vx = (d.vx - 0.05 * d.ox * dt) * damp; d.vy = (d.vy - 0.05 * d.oy * dt) * damp;
-        d.ox = clamp(d.ox + d.vx * dt, -32, 32); d.oy = clamp(d.oy + d.vy * dt, -32, 32);
+        d.ox = clamp(d.ox + d.vx * dt, -14, 14); d.oy = clamp(d.oy + d.vy * dt, -14, 14);
         const sp = Math.abs(d.vx) + Math.abs(d.vy);
         if (sp > 0.02) moving = true;
         if (sp + Math.abs(d.ox) + Math.abs(d.oy) < 0.05) live.delete(k);   // settled dots land exactly on the grid
@@ -108,9 +108,9 @@
         const x = c * G + G / 2, lag = gy * sheet(x);
         for (let r = top; r <= top + rows; r++) {
           const y = r * G + G / 2, d = live.get(key(c, r)), e = d ? Math.abs(d.ox) + Math.abs(d.oy) : 0;
-          const al = Math.min(7, Math.round(Math.min(1, glow(x, y) + e / 25) * 8) - 1);
+          const al = Math.min(7, Math.round(Math.min(1, glow(x, y) + e / 50) * 8) - 1);
           if (al < 0) continue;
-          batches[Math.min(3, (e / 5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - scrollY + lag + (d ? d.oy : 0));
+          batches[Math.min(3, (e / 3.5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - scrollY + lag + (d ? d.oy : 0));
         }
       }
       batches.forEach((pts, i) => {              // colour runs from grid grey to clay as a dot is pushed further
@@ -125,14 +125,22 @@
 
     const start = loop(step);
     const point = (x, y) => { ptr = { x, y }; start(); };
-    const wave = (x, y) => { waves.push({ x, y: y + scrollY, t: 0 }); start(); };
+    // waves start only from empty space: things with their own physics, links and buttons keep a press to themselves
+    const OWN = ".timeline, .stage, .title, .chart, .card, .hl, .honor, .paper, .badges, .hero-art, a, button";
+    let lastWave = 0;
+    const wave = (x, y, target) => {
+      if (target?.closest?.(OWN) || performance.now() - lastWave < 120) return;
+      lastWave = performance.now();
+      waves = [...waves.slice(-2), { x, y: y + scrollY, t: 0 }];      // at most three rings at once
+      start();
+    };
     addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") point(e.clientX, e.clientY); }, { passive: true });
     addEventListener("touchmove", (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
     addEventListener("touchend", () => { ptr = null; start(); }, { passive: true });
     root.addEventListener("mouseleave", () => { ptr = null; start(); });
     // mouse: a wave on every press; touch: only on a tap, so starting a scroll doesn't set one off
-    addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") wave(e.clientX, e.clientY); }, { passive: true });
-    addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) wave(e.clientX, e.clientY); }, { passive: true });
+    addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") wave(e.clientX, e.clientY, e.target); }, { passive: true });
+    addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) wave(e.clientX, e.clientY, e.target); }, { passive: true });
     addEventListener("scroll", start, { passive: true });
     addEventListener("resize", () => { size(); start(); });
     onTheme(() => { paint(); draw(); });
@@ -309,7 +317,7 @@
   // ---------- string ----------
   const tl = document.querySelector(".timeline");
   if (tl) {
-    const N = 32, A = 40, BAND = 26, MAX = 26, ys = new Float32Array(N), vs = new Float32Array(N), HAND = [0.25, 0.6, 1, 0.6, 0.25];
+    const N = 32, A = 40, BAND = 22, MAX = 12, ys = new Float32Array(N), vs = new Float32Array(N), HAND = [0.25, 0.6, 1, 0.6, 0.25];
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "string");
     svg.setAttribute("aria-hidden", "true");
@@ -361,7 +369,7 @@
     const start = loop(step);
     const pluck = (u, amp) => {                    // a triangle pulled out at u, then let go
       const k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2);
-      for (let i = 1; i < N - 1; i++) ys[i] += amp * (i <= k ? i / k : (N - 1 - i) / (N - 1 - k));
+      for (let i = 1; i < N - 1; i++) ys[i] = clamp(ys[i] + amp * (i <= k ? i / k : (N - 1 - i) / (N - 1 - k)), -MAX, MAX);
       start();
     };
     const rel = (e) => {
@@ -377,8 +385,8 @@
       else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
       prevW = over ? w : null;
     }, { passive: true });
-    tl.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 18 || 18); } });
-    once(tl, () => setTimeout(() => pluck(L * 0.3, 20), 500), "0px 0px -20% 0px");
+    tl.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 10 || 10); } });
+    once(tl, () => setTimeout(() => pluck(L * 0.3, 10), 500), "0px 0px -20% 0px");
     addEventListener("resize", () => { layout(); draw(); });
     layout(); draw();
   }
