@@ -90,7 +90,7 @@
       let moving = waves.length > 0 || v !== 0 || gy !== 0;
       for (const [k, d] of live) {
         d.vx = (d.vx - 0.05 * d.ox * dt) * damp; d.vy = (d.vy - 0.05 * d.oy * dt) * damp;
-        d.ox += d.vx * dt; d.oy += d.vy * dt;
+        d.ox = clamp(d.ox + d.vx * dt, -32, 32); d.oy = clamp(d.oy + d.vy * dt, -32, 32);
         const sp = Math.abs(d.vx) + Math.abs(d.vy);
         if (sp > 0.02) moving = true;
         if (sp + Math.abs(d.ox) + Math.abs(d.oy) < 0.05) live.delete(k);   // settled dots land exactly on the grid
@@ -265,7 +265,7 @@
         let moving = false;
         for (const c of ic.cells) {
           c.vx = (c.vx - c.x * 0.07 * dt) * damp; c.vy = (c.vy - c.y * 0.07 * dt) * damp; c.vr = (c.vr - c.r * 0.07 * dt) * damp;
-          c.x += c.vx * dt; c.y += c.vy * dt; c.r += c.vr * dt;
+          c.x = clamp(c.x + c.vx * dt, -40, 40); c.y = clamp(c.y + c.vy * dt, -40, 40); c.r += c.vr * dt;
           const m = Math.abs(c.x) + Math.abs(c.y) + Math.abs(c.vx) + Math.abs(c.vy) + Math.abs(c.r) / 20;
           moving ||= m > 0.05;
           c.el.style.transform = m > 0.05 ? `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) rotate(${c.r.toFixed(0)}deg)` : "";
@@ -309,7 +309,7 @@
   // ---------- string ----------
   const tl = document.querySelector(".timeline");
   if (tl) {
-    const N = 32, A = 40, BAND = 30, ys = new Float32Array(N), vs = new Float32Array(N);
+    const N = 32, A = 40, BAND = 26, MAX = 26, ys = new Float32Array(N), vs = new Float32Array(N), HAND = [0.25, 0.6, 1, 0.6, 0.25];
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "string");
     svg.setAttribute("aria-hidden", "true");
@@ -343,8 +343,14 @@
       const n = Math.ceil(dt * 2), h = dt / n;     // wave equation, two sub-steps per frame for stability
       for (let s = 0; s < n; s++) {
         for (let i = 1; i < N - 1; i++) vs[i] = (vs[i] + (ys[i - 1] + ys[i + 1] - 2 * ys[i]) * 2.5 * h) * 0.94 ** h;
-        for (let i = 1; i < N - 1; i++) ys[i] += vs[i] * h;
-        if (grab) { ys[grab.k] = grab.w; vs[grab.k] = 0; }
+        if (grab) HAND.forEach((wt, j) => {        // the hand pulls a few points toward it through a spring, never teleports them
+          const i = grab.k + j - 2;
+          if (i > 0 && i < N - 1) vs[i] = (vs[i] + (grab.w - ys[i]) * 0.5 * wt * h) * 0.7 ** (wt * h);
+        });
+        for (let i = 1; i < N - 1; i++) {
+          ys[i] += vs[i] * h;
+          if (Math.abs(ys[i]) > MAX) { ys[i] = Math.sign(ys[i]) * MAX; vs[i] *= -0.3; }   // hits a fret: bounces back and loses energy
+        }
       }
       let e = 0;
       for (let i = 0; i < N; i++) e += Math.abs(ys[i]) + Math.abs(vs[i]);
@@ -367,8 +373,8 @@
       if (e.pointerType !== "mouse") return;
       const { u, w } = rel(e), k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2), over = u > 0 && u < L && Math.abs(w) < BAND;
       if (grab && !over) { grab = null; start(); }
-      else if (grab) { grab = { k, w }; start(); }
-      else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w }; start(); }
+      else if (grab) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
+      else if (over && prevW !== null && (Math.sign(w - ys[k]) !== Math.sign(prevW - ys[k]) || Math.abs(w - ys[k]) < 3)) { grab = { k, w: clamp(w, -MAX, MAX) }; start(); }
       prevW = over ? w : null;
     }, { passive: true });
     tl.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") { const { u, w } = rel(e); pluck(u, clamp(w, -1, 1) * 18 || 18); } });
@@ -386,7 +392,7 @@
       const n = Math.ceil(dt), h = dt / n;
       for (let k = 0; k < n; k++) {
         for (let i = 0; i < 30; i++) v[i] = (v[i] + (-0.08 * s[i] + 0.12 * ((s[i - 1] || 0) + (s[i + 1] || 0) - 2 * s[i])) * h) * 0.92 ** h;
-        for (let i = 0; i < 30; i++) s[i] += v[i] * h;
+        for (let i = 0; i < 30; i++) s[i] = clamp(s[i] + v[i] * h, -0.25, 0.25);
       }
       let e = 0;
       for (let i = 0; i < 30; i++) e += Math.abs(s[i]) + Math.abs(v[i]);
