@@ -310,8 +310,6 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .heap .stage li { position: absolute; left: 0; top: 100%; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
   box-shadow: 0 2px 0 rgba(20,20,19,.1); }   /* flat: a blurred shadow is re-blended every frame a chip or something over it moves */
 .heap .stage li[hidden] { display: none; }
-.heap .stage li { transition: opacity .4s ease; }
-.heap.settling .stage li { opacity: 0; }   /* the pile settles out of sight, then fades in where it rests */
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
 .physics .stack { display: none; }
 @media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */

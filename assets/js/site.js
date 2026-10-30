@@ -108,7 +108,9 @@
     return String(n);
   };
   const iso = (d) => d.toISOString().slice(0, 10);
-  const label = (s) => new Date(s + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "2-digit", timeZone: "UTC" });
+  // one formatter for every date: toLocaleDateString builds a new one per call, ~40 calls a chart (55 ms on a 4x slower CPU)
+  const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit", timeZone: "UTC" });
+  const label = (s) => day.format(new Date(s + "T00:00:00Z"));
 
   // the numbers baked in at build time draw at once; the live file then replaces them without counting up again
   let data = null;

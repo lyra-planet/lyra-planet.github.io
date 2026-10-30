@@ -113,7 +113,7 @@
       engine = tune(Engine.create(SOLVER));
       engine.gravity.x = tiltG.x; engine.gravity.y = tiltG.y;
       engines.add(engine);
-      ceiling = null; born = performance.now();
+      ceiling = null;
       if (!layer.isConnected) { document.body.append(layer); layer.append(stage); pit.classList.add("armed"); }
       measure();
       W = box.w; H = box.h;                       // the layer's own box: innerWidth would count the scrollbar
@@ -137,10 +137,8 @@
         walls.button.centre = () => ({ x: box.bl + w / 2, y: box.bt + h / 2 });
       }
       Composite.add(engine.world, Object.values(walls));
-      // Placed in loose rows just above the floor and settled out of sight, then faded in: raining them in from
-      // above the window on every load swept 22 chips across the first view while it was still building (1030)
-      let y = -16, x = 0;
-      bodies = items.map((it) => {
+      let y = -H - 10, x = 0;
+      bodies = items.map((it) => {               // they rain in from just above the window, a few side by side per row
         if (x + it.w > W) { x = 0; y -= it.h + 10; }
         const cx = x + it.w / 2 + Math.random() * 12;
         x += it.w + 24 + Math.random() * 40;
@@ -153,26 +151,7 @@
         return it.body;
       });
       Composite.add(engine.world, bodies);
-      layer.classList.add("settling");
-      settle().then(() => {
-        for (const b of bodies) b.px = undefined;  // no interpolation from the fast-forward
-        items.forEach((it) => (it.drawn = false));
-        sync();
-        layer.classList.remove("settling");
-        run();
-      });
     };
-    // run the world ahead, 30 steps a frame (a few ms), until the pile sleeps; nothing is drawn meanwhile
-    const settle = () => new Promise((done) => {
-      let n = 0;
-      const chunk = () => {
-        for (let i = 0; i < 30 && n < 420; i++, n++) M.Engine.update(engine, STEP);
-        lid(); rescue();
-        if (n >= 420 || (ceiling && bodies.every((b) => b.isSleeping))) return done();
-        requestAnimationFrame(chunk);
-      };
-      chunk();
-    });
 
     // the lid (the window's top edge) goes on once every chip has fallen in; after 4 s, stragglers are dropped back inside
     const lid = () => {
@@ -247,7 +226,7 @@
       requestAnimationFrame(tick);
     };
     const run = () => {
-      if (running || !engine) return;
+      if (running || !born) return;                // nothing moves before the drop
       running = true; last = performance.now(); acc = 0;
       requestAnimationFrame(tick);
     };
@@ -297,9 +276,16 @@
     addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") nearby(e); }, { passive: true });
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) nearby(e); }, { passive: true });
 
-    const start = () => Promise.all([load(), document.fonts && document.fonts.ready]).then(build).catch(() => {});
-    if (document.readyState === "complete") setTimeout(start, 900);
-    else addEventListener("load", () => setTimeout(start, 900), { once: true });   // after the hero's entrance has mostly run
+    // Matter is loaded and the world built as soon as the page has loaded, while the hero's entrance plays (it runs
+    // off the main thread); the chips start falling 900 ms later, with the main thread free. Loading and building
+    // at the moment of the drop took 80-120 ms of script on a 4x slower CPU, and the first frames of the fall stuttered.
+    const drop = () => { born = performance.now(); run(); };
+    const start = () => {
+      const at = performance.now() + 900;
+      Promise.all([load(), document.fonts && document.fonts.ready]).then(() => { build(); setTimeout(drop, at - performance.now()); }).catch(() => {});
+    };
+    if (document.readyState === "complete") start();
+    else addEventListener("load", start, { once: true });
     document.addEventListener("visibilitychange", () => run());
     addEventListener("scroll", () => run(), { passive: true });
     addEventListener("resize", () => { if (engine) { measure(); run(); } });
