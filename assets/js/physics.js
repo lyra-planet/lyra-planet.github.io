@@ -11,7 +11,6 @@
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const root = document.documentElement;
   root.classList.add("physics");
-  const DPR = Math.min(2, devicePixelRatio || 1);
   const css = (k) => getComputedStyle(root).getPropertyValue(k).trim();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const held = () => root.classList.contains("gravity");     // gravity mode owns element transforms while it is on
@@ -54,7 +53,10 @@
       styles = [0, 0.4, 0.7, 1].flatMap((t) => Array.from({ length: 8 }, (_, l) => `rgba(${a.map((v, i) => Math.round(v + (c[i] - v) * t))},${(l + 1) / 8})`));
     };
     const size = () => {
-      W = innerWidth; H = innerHeight; field.width = W * DPR; field.height = H * DPR; whole = true;
+      // one canvas pixel per CSS pixel, scaled up crisp (image-rendering: pixelated): the dots are squares on a grid
+      // anyway, and a full-screen canvas at 2x was the most expensive thing on the page (each frame hands its whole
+      // bitmap to the compositor)
+      W = innerWidth; H = innerHeight; field.width = W; field.height = H; whole = true;
       fx = Array.from({ length: Math.ceil(W / G) + 2 }, (_, c) => ((c * G + G / 2 - 0.75 * W) / (0.8 * W)) ** 2);
     };
     // faint everywhere, brightest in an ellipse behind the hero
@@ -124,7 +126,6 @@
         [x0, y0, x1, y1] = [Math.max(0, u[0] - 24), Math.max(0, u[1] - 24), Math.min(W, u[2] + 24), Math.min(H, u[3] + 24)];
       }
       lastBox = box; whole = false; drawnSY = SY;
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       ctx.save();
       ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
       ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
@@ -151,7 +152,7 @@
     };
 
     const start = loop(step);
-    const point = (x, y) => { ptr = { x, y }; start(); };
+    const point = (x, y) => { ptr = held() ? null : { x, y }; start(); };   // in gravity mode dragging must not repaint the background
     // waves start only from empty space: things with their own physics, links and buttons keep a press to themselves
     const OWN = ".timeline, .stage, .title, .chart, .card, .hl, .honor, .paper, .badges, .hero-art, a, button";
     let lastWave = 0;
@@ -186,6 +187,9 @@
       if (im.getAttribute("src") !== want) im.setAttribute("src", want);
     });
     new IntersectionObserver(([e]) => { seen = e.isIntersecting; set(); }).observe(planets[0].closest("figure"));
+    // fetch and decode the still frames while the browser is idle, so the swap never waits on the network
+    const warm = () => planets.forEach((im) => { const i = new Image(); i.src = im.dataset.still; i.decode?.().catch(() => {}); });
+    "requestIdleCallback" in window ? requestIdleCallback(warm, { timeout: 4000 }) : setTimeout(warm, 2500);
     document.addEventListener("gravitychange", set);
   }
 
@@ -342,10 +346,10 @@
         for (const c of ic.cells) { c.x = (Math.random() - 0.5) * 70; c.y = (Math.random() - 0.5) * 70; c.r = (Math.random() - 0.5) * 180; }
         active.add(ic); start();
       });
-      host.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") burst(ic, 3.5); });
-      host.addEventListener("pointerdown", (e) => burst(ic, 5, ...cell(ic, e)));
+      host.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !held()) burst(ic, 3.5); });
+      host.addEventListener("pointerdown", (e) => { if (!held()) burst(ic, 5, ...cell(ic, e)); });
       ic.px.addEventListener("pointermove", (e) => {   // the cursor parts the pixels it passes through
-        if (e.pointerType !== "mouse") return;
+        if (e.pointerType !== "mouse" || held()) return;
         const [px, py] = cell(ic, e);
         for (const c of ic.cells) {
           const dx = (c.i % 10) - px, dy = ((c.i / 10) | 0) - py, d = Math.hypot(dx, dy) || 1;
@@ -413,6 +417,7 @@
     const start = loop(step);
     // a strum: velocity into a few points around u, smooth, so it rings as one wave instead of a kink
     const strum = (u, speed) => {
+      if (held()) return;
       const k = clamp(Math.round((u / L) * (N - 1)), 1, N - 2);
       [0.25, 0.6, 1, 0.6, 0.25].forEach((wt, j) => { const i = k + j - 2; if (i > 0 && i < N - 1) vs[i] += speed * wt; });
       start();
@@ -464,6 +469,7 @@
     };
     const start = loop(step);
     const poke = (e) => {
+      if (held()) return;
       const i = +(e.target.dataset?.i ?? -1);
       if (i < 0 || i === last) return;
       last = i;

@@ -10,6 +10,23 @@
   });
   document.querySelector(".print")?.addEventListener("click", () => window.print());
 
+  // ---- frame meter: add #fps to the address; frames per second and the slowest frame of the last second ----
+  if (location.hash === "#fps") {
+    const box = document.createElement("div");
+    box.className = "fps";
+    document.body.append(box);
+    let n = 0, worst = 0, t0 = performance.now(), prev = t0;
+    const f = (t) => {
+      n++; worst = Math.max(worst, t - prev); prev = t;
+      if (t - t0 >= 1000) {
+        box.textContent = `${Math.round((n * 1000) / (t - t0))} fps\nworst ${Math.round(worst)} ms\n${devicePixelRatio}x ${innerWidth}x${innerHeight}`;
+        n = 0; worst = 0; t0 = t;
+      }
+      requestAnimationFrame(f);
+    };
+    requestAnimationFrame(f);
+  }
+
   // ---- home motion; with reduced motion everything lands on its final state at once ----
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ease = (t) => 1 - (1 - t) ** 3;

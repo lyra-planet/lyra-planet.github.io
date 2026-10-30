@@ -276,6 +276,7 @@
     try { await load(); } finally { pending = false; }
     const { Engine, Bodies, Composite, Body } = M;
     homing++;                                    // cancel a restore that is still running
+    root.style.setProperty("--dots-y", `${-(SY % 22)}px`);   // the painted dots line up with where the canvas dots were
     root.classList.add("gravity");               // physics.js lets go of its transforms; reveals and entrances are forced to their end state
     document.dispatchEvent(new Event("gravitychange"));
     const all = [...document.querySelectorAll(PARTS)];

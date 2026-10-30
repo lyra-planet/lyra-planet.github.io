@@ -245,7 +245,8 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .band-head p { margin: 0; } .band-head b { color: var(--ink); font-weight: 500; } .band-head a { color: var(--clay-text); }
 .live { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5fbf7f; margin-right: 10px; }
 /* the pulse is a ring that scales and fades: transform and opacity run on the compositor, a box-shadow animation repaints every frame */
-.live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #5fbf7f; animation: pulse 2s ease-out infinite; }
+.live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #5fbf7f; opacity: 0; animation: pulse 2s ease-out 4; }
+.band-head:hover .live::after { animation: pulse 2s ease-out infinite; }
 @keyframes pulse { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
 .band .usage { background: none; border: 0; padding: 18px 0 0; }
 .band .tip { background: #faf9f5; color: #141413; }
@@ -306,7 +307,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .heap { position: fixed; inset: 0; z-index: 55; pointer-events: none; overflow: hidden; }
 .heap .stage { position: absolute; inset: 0; display: block; }
 .heap .stage li { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
-  box-shadow: 0 6px 16px -10px rgba(20,20,19,.55); }
+  box-shadow: 0 2px 0 rgba(20,20,19,.1); }   /* flat: a blurred shadow is re-blended every frame a chip or something over it moves */
 .heap .stage li[hidden] { display: none; }
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
 .armed .pit-hint { margin: 0; }
@@ -321,7 +322,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 
 /* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
 .field { display: none; }
-.physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; will-change: transform; }
+.physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; will-change: transform; image-rendering: pixelated; }
 .physics body.home::before { display: none; }
 .physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .physics .title span.held { cursor: grabbing; }
@@ -336,11 +337,21 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .string path { fill: none; stroke: url(#string-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* gravity mode (bodies.js) */
+/* while things fall, the dot field is a plain background painted with the page instead of its own full-screen canvas layer */
+.physics.gravity .field { visibility: hidden; }
+.physics.gravity body { background-image: var(--dots); background-attachment: fixed; background-position: 0 var(--dots-y, 0); }
+:root { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%23d1cec4'/%3E%3C/svg%3E"); }
+:root[data-theme="dark"] { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%2345443f'/%3E%3C/svg%3E"); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%2345443f'/%3E%3C/svg%3E"); } }
+/* frame meter, only with #fps in the address */
+.fps { position: fixed; left: 10px; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 80; font: 500 12px/1.4 var(--mono); padding: 6px 9px; border-radius: 8px; background: #141413; color: #faf9f5; pointer-events: none; white-space: pre; }
 .grav { display: none; }
 .physics .grav { display: inline-flex; align-items: center; gap: 9px; position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60;
   font: 500 12.5px var(--mono); padding: 10px 15px 10px 13px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);
   box-shadow: 0 12px 30px -14px rgba(20,20,19,.5); cursor: pointer; }
-.grav i { width: 9px; height: 9px; border-radius: 2px; background: var(--clay); animation: drop 1.8s cubic-bezier(.55,0,1,.45) infinite; }
+/* the falling square plays three times, then again on hover: an endless loop would keep the whole screen compositing */
+.grav i { width: 9px; height: 9px; border-radius: 2px; background: var(--clay); transform: translateY(5px); animation: drop 1.8s cubic-bezier(.55,0,1,.45) 3; }
+.grav:hover i { animation-iteration-count: infinite; }
 @keyframes drop { 0% { transform: translateY(-7px); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateY(5px); } 78% { transform: translateY(2px); } 86%, 100% { transform: translateY(5px); opacity: 1; } }
 .gravity .grav { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .gravity .grav i { animation: none; transform: rotate(45deg); background: var(--clay); }
@@ -350,7 +361,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .gravity body { -webkit-user-select: none; user-select: none; }
 /* the usage band breaks apart: its panel stays as an outline, its pieces fall as dark tiles */
 .gravity .band { background: transparent; border-style: dashed; border-color: rgba(135,134,127,.45); box-shadow: none; }
-.gravity .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 14px 30px -12px rgba(20,20,19,.55); }
+.gravity .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 3px 0 8px rgba(20,20,19,.25); }
 .boom { z-index: 70; }
 
 /* scroll reveal */
