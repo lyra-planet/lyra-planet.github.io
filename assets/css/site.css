@@ -1,7 +1,7 @@
 /* lyra-planet.github.io — warm editorial + terminal. Colours match the GitHub profile (theme.py there). */
 
-@font-face { font-family: "Newsreader"; src: url("../fonts/Newsreader-normal-300-700.woff2") format("woff2"); font-weight: 300 700; font-style: normal; font-display: swap; }
-@font-face { font-family: "Newsreader"; src: url("../fonts/Newsreader-italic-300-700.woff2") format("woff2"); font-weight: 300 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("../fonts/Newsreader-normal-400-700.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("../fonts/Newsreader-italic-400-700.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
 @font-face { font-family: "IBM Plex Mono"; src: url("../fonts/IBMPlexMono-normal-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "IBM Plex Mono"; src: url("../fonts/IBMPlexMono-normal-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
 

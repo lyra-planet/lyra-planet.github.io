@@ -276,16 +276,19 @@
     addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") nearby(e); }, { passive: true });
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) nearby(e); }, { passive: true });
 
-    // Matter is loaded and the world built as soon as the page has loaded, while the hero's entrance plays (it runs
-    // off the main thread); the chips start falling 900 ms later, with the main thread free. Loading and building
-    // at the moment of the drop took 80-120 ms of script on a 4x slower CPU, and the first frames of the fall stuttered.
+    // The chips fall 500 ms after the first view appears (the head script holds it until its fonts are in). Matter
+    // is loaded and the world built before that, while the hero's entrance plays off the main thread, so the main
+    // thread is free when they fall: loading and building at the moment of the drop took 80-120 ms of script on a
+    // 4x slower CPU, and the first frames stuttered. Waiting for the load event (as before) also waited for the
+    // planet and the italic: on a slow line, a second later.
     const drop = () => { born = performance.now(); run(); };
-    const start = () => {
-      const at = performance.now() + 900;
-      Promise.all([load(), document.fonts && document.fonts.ready]).then(() => { build(); setTimeout(drop, at - performance.now()); }).catch(() => {});
-    };
-    if (document.readyState === "complete") start();
-    else addEventListener("load", start, { once: true });
+    const shown = new Promise((ok) => {
+      const check = () => !root.classList.contains("fonts-wait") && (ok(performance.now()), true);
+      if (!check()) new MutationObserver((_, o) => check() && o.disconnect()).observe(root, { attributes: true, attributeFilter: ["class"] });
+    });
+    const mono = () => document.fonts && document.fonts.load("400 1em 'IBM Plex Mono'");   // the chips are measured in it
+    Promise.all([load(), shown.then(mono)]).then(build).then(() => shown)
+      .then((t) => setTimeout(drop, t + 500 - performance.now())).catch(() => {});
     document.addEventListener("visibilitychange", () => run());
     addEventListener("scroll", () => run(), { passive: true });
     addEventListener("resize", () => { if (engine) { measure(); run(); } });

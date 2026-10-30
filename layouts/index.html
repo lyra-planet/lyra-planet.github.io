@@ -22,8 +22,9 @@
     </p>
   </div>
   <figure class="hero-art rise" style="--d:2">
-    <img class="only-light" src="{{ "img/planet-light.svg" | relURL }}" width="307" height="179" alt="A pixel-art planet with a ring and a moon, repeatedly denoised out of random noise">
-    <img class="only-dark" src="{{ "img/planet-dark.svg" | relURL }}" width="307" height="179" alt="">
+    {{/* lazy: the hidden theme's planet is not fetched on load (site.js fetches it once the page is idle) */}}
+    <img class="only-light" src="{{ "img/planet-light.svg" | relURL }}" loading="lazy" width="307" height="179" alt="A pixel-art planet with a ring and a moon, repeatedly denoised out of random noise">
+    <img class="only-dark" src="{{ "img/planet-dark.svg" | relURL }}" loading="lazy" width="307" height="179" alt="">
   </figure>
 </section>
 
@@ -127,6 +128,5 @@
   <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a> &nbsp; <a href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV →</a></p>
 </section>
 <button class="grav" type="button" aria-pressed="false" data-engine="{{ "js/vendor/matter-0.20.0.min.js" | relURL }}" title="Let everything on screen fall. Press again or Esc to put it back."><i aria-hidden="true"></i><span>gravity</span></button>
-<script src="{{ "js/vendor/lenis-1.3.26.min.js" | relURL }}" defer></script>
 {{ range slice "js/physics.js" "js/bodies.js" }}{{ with resources.Get . | fingerprint }}<script src="{{ .RelPermalink }}" defer></script>{{ end }}{{ end }}
 {{ end }}

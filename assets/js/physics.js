@@ -477,7 +477,18 @@
     };
     const scrollPos = () => (lenis ? lenis.animatedScroll : SY);
     const useLenis = () => !coarse && smooth && window.Lenis;
+    // Lenis is fetched only when the smooth wheel is turned on (it is off by default); it sits next to this file
+    const LENIS = new URL("vendor/lenis-1.3.26.min.js", document.currentScript.src).href;
     const setLenis = () => {
+      if (!coarse && smooth && !window.Lenis) {
+        if (!setLenis.asked) {
+          setLenis.asked = true;
+          const s = document.createElement("script");
+          s.src = LENIS; s.onload = () => { setLenis(); kick(); };
+          document.head.append(s);
+        }
+        return;
+      }
       if (useLenis() && !lenis) {
         lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, autoRaf: false, anchors: true });
         lenis.on("scroll", kick);
