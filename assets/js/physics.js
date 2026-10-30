@@ -632,6 +632,7 @@
       });
       document.body.append(lab);
     }
+    if (/diag/.test(location.hash)) window.lyraScroll = (m) => setMode(m);   // diag.js switches the float off and on
     const boot = () => { setMode(mode); };
     if (document.fonts) document.fonts.ready.then(boot); else boot();
     addEventListener("load", place, { once: true });
