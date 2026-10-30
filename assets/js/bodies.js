@@ -9,6 +9,14 @@
   const pit = document.querySelector(".pit"), stage = pit?.querySelector(".stage"), gbtn = document.querySelector(".grav");
   if (!pit && !gbtn) return;
   const STEP = 1000 / 60;
+  // One tuning for both worlds. Matter's defaults are made for demos; on a page these settle faster and stay put:
+  // a stronger solver, quicker sleep, more friction, and a mass ratio capped at 8:1 (with mass by area, the "CV"
+  // link was 400 times lighter than the planet card, and a solver that iterates can't hold such a pile still).
+  const SOLVER = { enableSleeping: true, positionIterations: 10, velocityIterations: 8 };
+  const GRAVITY = 0.0018;                      // 1.8x Matter's default: a fall reads as a fall, not a float
+  const BODY = { restitution: 0.15, friction: 0.5, frictionStatic: 0.8, frictionAir: 0.01, sleepThreshold: 30 };
+  const tune = (engine) => { engine.gravity.scale = GRAVITY; M.Sleeping._motionSleepThreshold = 0.12; return engine; };
+  const weigh = (b) => M.Body.setMass(b, clamp(b.area / 2500, 0.6, 4.8));
   let M = null;
   const load = () => M ? Promise.resolve(M) : new Promise((ok, no) => {
     const s = document.createElement("script");
@@ -19,8 +27,16 @@
   });
   let lastPointer = "mouse";                   // Safari's click has no pointerType; remember what pressed
   addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
-  let SY = scrollY;                            // read in the scroll event, never inside a frame (that forces a layout)
-  addEventListener("scroll", () => { SY = scrollY; }, { capture: true, passive: true });
+  // Scroll position and speed, measured in the scroll event (reading scrollY inside a frame forces a layout).
+  // The speed lives here, not in a loop: the chip loop sleeps when everything rests, and a loop that measures
+  // speed from frame to frame sees zero on the frame a scroll wakes it.
+  let SY = scrollY, SV = 0, lastScroll = 0;
+  addEventListener("scroll", () => {
+    const now = performance.now(), dt = now - lastScroll;
+    SV = dt < 100 ? ((scrollY - SY) * 16.67) / Math.max(dt, 4) : 0;   // px per 60 fps frame
+    SY = scrollY; lastScroll = now;
+  }, { capture: true, passive: true });
+  const scrollSpeed = () => (performance.now() - lastScroll > 80 ? 0 : SV);
   // Matter steps at a fixed 60 Hz. Each frame is drawn between the last two steps, so motion stays smooth on
   // 120 Hz screens instead of moving every other frame.
   const advance = (engine, bodies, acc) => {
@@ -71,7 +87,7 @@
     const layer = document.createElement("div");
     layer.className = "heap";
     let engine = null, items = [], bodies = [], walls = null, grab = null, grabbed = false, ceiling = null, born = 0, few = false;
-    let running = false, last = 0, acc = 0, sy = SY, sv = 0, W = innerWidth, H = innerHeight;
+    let running = false, last = 0, acc = 0, sv = 0, W = innerWidth, H = innerHeight;
     let box = { w: 0, h: 0, bl: 0, bt: 0 };      // the window and the gravity button's corner, measured on resize only
     const measure = () => {
       const g = gbtn && gbtn.getBoundingClientRect();
@@ -82,16 +98,16 @@
     const build = () => {
       const { Engine, Bodies, Composite } = M;
       engine && engines.delete(engine);
-      engine = Engine.create({ enableSleeping: true });
+      engine = tune(Engine.create(SOLVER));
       engine.gravity.x = tiltG.x; engine.gravity.y = tiltG.y;
       engines.add(engine);
       ceiling = null; born = performance.now();
       if (!layer.isConnected) { document.body.append(layer); layer.append(stage); pit.classList.add("armed"); }
       measure();
       W = box.w; H = box.h;                       // the layer's own box: innerWidth would count the scrollbar
-      few = small();                              // phones (either way up) get ten chips, so the pile stays low
+      few = small();                              // phones (either way up) get eight chips: the gravity button takes part of a narrow floor
       const all = [...stage.querySelectorAll("li")];
-      all.forEach((el, i) => { el.hidden = few && i >= 10; el.style.transform = ""; });
+      all.forEach((el, i) => { el.hidden = few && i >= 8; el.style.transform = ""; });
       items = all.filter((el) => !el.hidden).map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
       const wall = { isStatic: true };
       walls = {                                   // huge, so a resize only ever has to move the right wall and the floor
@@ -107,13 +123,16 @@
         walls.button.centre = () => ({ x: box.bl + w / 2, y: box.bt + h / 2 });
       }
       Composite.add(engine.world, Object.values(walls));
-      let y = 0;
-      bodies = items.map((it) => {               // they rain in from above the window
-        y -= it.h + 6;
-        it.body = Bodies.rectangle(it.w / 2 + Math.random() * Math.max(1, W - it.w), y, it.w, it.h, {
-          chamfer: { radius: it.h / 2 - 1 }, angle: (Math.random() - 0.5) * 0.6,
-          restitution: 0.3, friction: 0.2, frictionAir: 0.012, density: 0.002,
+      let y = -10, x = 0;
+      bodies = items.map((it) => {               // they rain in from just above the window, a few side by side per row
+        if (x + it.w > W) { x = 0; y -= it.h + 10; }
+        const cx = x + it.w / 2 + Math.random() * 12;
+        x += it.w + 24 + Math.random() * 40;
+        it.body = Bodies.rectangle(Math.min(cx, W - it.w / 2), y - Math.random() * 30, it.w, it.h, {
+          // chips lie side by side: low friction lets them slide past each other, so a tap can make one hop
+          ...BODY, restitution: 0.25, friction: 0.15, frictionStatic: 0.3, chamfer: { radius: it.h / 2 - 1 }, angle: (Math.random() - 0.5) * 0.6,
         });
+        weigh(it.body);
         it.drawn = false;
         return it.body;
       });
@@ -154,12 +173,14 @@
     };
     // scrolling moves the window over the page: when it speeds up downward the chips feel lighter, and hop
     const inertia = () => {
-      const v = SY - sy, a = v - sv;
-      sy = SY; sv = v;
+      const v = scrollSpeed(), a = v - sv;
+      sv = v;
       if (Math.abs(a) < 1.5) return;
       for (const b of bodies) {
         M.Sleeping.set(b, false);
-        M.Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - clamp(a, -30, 30) * 0.1 });
+        const vy = b.velocity.y - clamp(a, -40, 40) * 0.18;
+        // a jolt lifts a chip about 50 px at most: no lift for one already rising, so frames of jolt don't stack
+        M.Body.setVelocity(b, { x: b.velocity.x, y: a > 0 ? (b.velocity.y < -2 ? b.velocity.y : Math.max(vy, -7)) : vy });
       }
     };
     const sync = () => {
@@ -183,7 +204,7 @@
     };
     const run = () => {
       if (running || !engine) return;
-      running = true; last = performance.now(); acc = 0; sy = SY; sv = 0;
+      running = true; last = performance.now(); acc = 0;
       requestAnimationFrame(tick);
     };
 
@@ -286,14 +307,14 @@
     const els = all
       .filter((el) => { const r = el.getBoundingClientRect(); rect.set(el, r); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < H; })
       .filter((el, _, arr) => !arr.some((o) => o !== el && o.contains(el)));
-    const engine = Engine.create({ enableSleeping: true });
+    const engine = tune(Engine.create(SOLVER));
     engine.gravity.x = tiltG.x; engine.gravity.y = tiltG.y;
     const items = els.map((el) => {
       const r = rect.get(el), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const body = Bodies.rectangle(cx, cy, r.width, r.height, {
-        chamfer: { radius: Math.max(0, Math.min(14, r.height / 2 - 1, r.width / 2 - 1)) },
-        restitution: 0.2, friction: 0.4, frictionAir: 0.012, density: 0.001,
+        ...BODY, chamfer: { radius: Math.max(0, Math.min(14, r.height / 2 - 1, r.width / 2 - 1)) },
       });
+      weigh(body);
       Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.03);   // a nudge, so a perfect stack still topples
       return { el, body, cx, cy, drawn: false };
     });
