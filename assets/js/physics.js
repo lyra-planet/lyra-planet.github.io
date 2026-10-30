@@ -460,9 +460,12 @@
   //  - Springs that differ per block wobble out of step and read as jelly; the look people build on purpose
   //    (GSAP ScrollSmoother's "lag", Codrops' Elastic Grid Scroll) is a time-based catch-up with no overshoot,
   //    spread symmetrically: the middle of a grid arrives first, its edges a little later.
+  //  - Lenis advances by the time since its last raf() call, unclamped: a loop that paused while idle made the first
+  //    notch after a pause land in one frame (120 px), then stall. While Lenis is on, the loop keeps ticking (an
+  //    idle tick does no work), so every scroll starts from a fresh clock.
   // Several takes stay selectable with #lab in the address (or #scroll=grid|bubble|skew|off|native):
-  //   grid    (default) catch-up lag that grows from the centre of the content to its edges
-  //   bubble  iOS Messages bubbles: one spring, held back by distance from the pointer
+  //   bubble  (default, chosen 1030) iOS Messages bubbles: one spring, held back by distance from the pointer
+  //   grid    catch-up lag that grows from the centre of the content to its edges
   //   skew    the content leans with scroll speed and eases back
   //   off     smooth wheel only;  native  the browser's own scrolling, nothing added
   // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
@@ -473,12 +476,12 @@
   const MODES = ["grid", "bubble", "skew", "off", "native"];
   const fromHash = /scroll=(\w+)/.exec(location.hash)?.[1];
   let mode = MODES.includes(fromHash) ? fromHash : (() => { try { return localStorage.getItem("scroll-mode"); } catch (e) { return null; } })();
-  if (!MODES.includes(mode)) mode = "grid";
+  if (!MODES.includes(mode)) mode = "bubble";
   const coarse = matchMedia("(pointer: coarse)").matches;
   if (blocks.length) {
     const MAXY = 48, TAU_EDGE = 0.035, TAU_V = 0.12;   // grid: lag in s at the content's edge (0 in its middle); speed smoothing in s
     const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // bubble spring, per 60 fps frame
-    let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false;
+    let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false, shown = 0;
     const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
     const clearSkew = () => { if (skewShown) sections.forEach((s) => (s.style.transform = "")); skewShown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
@@ -521,7 +524,8 @@
         }
         live ||= skewShown;
       } else if (skewShown) clearSkew();
-      if (mode === "grid" || mode === "bubble") {
+      if ((mode === "grid" || mode === "bubble") && (d || vs || shown)) {   // idle ticks skip the blocks entirely
+        shown = 0;
         const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);
         const sub = Math.max(1, Math.round(dt * 120)), h = (dt * 60) / sub;
         for (const b of blocks) {
@@ -536,12 +540,13 @@
           }
           const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
           live ||= moving;
-          if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; }
+          if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; shown++; }
           else if (b.shown) clear(b);
         }
-      } else for (const b of blocks) if (b.shown) clear(b);
-      if (live && !raf) raf = requestAnimationFrame(frame);   // Lenis' own scroll callback may already have asked for one
-      else if (!live) lastT = 0;
+      } else if (mode !== "grid" && mode !== "bubble" && shown) { for (const b of blocks) if (b.shown) clear(b); shown = 0; }
+      // with Lenis on, keep ticking so its clock never goes stale; otherwise stop once everything rests
+      if ((live || (lenis && !document.hidden)) && !raf) raf = requestAnimationFrame(frame);
+      else if (!live && !lenis) lastT = 0;
     };
     function kick() { if (!raf) raf = requestAnimationFrame(frame); }
     addEventListener("scroll", kick, { passive: true });
@@ -556,13 +561,13 @@
     document.addEventListener("gravitychange", () => {
       frozen = held();
       if (frozen) { for (const b of blocks) clear(b); clearSkew(); lenis && lenis.stop(); }
-      else { lenis && lenis.start(); place(); }
+      else { lenis && lenis.start(); place(); kick(); }
     });
     const setMode = (m) => {
       mode = m;
       try { localStorage.setItem("scroll-mode", m); } catch (e) { /* private mode */ }
       for (const b of blocks) clear(b);
-      clearSkew(); setLenis(); place();
+      clearSkew(); setLenis(); place(); kick();
       lab && lab.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
     };
     // the comparison panel, only with #lab in the address
