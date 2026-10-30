@@ -218,7 +218,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
   animation: drift 30s linear infinite; }
 @keyframes drift { to { background-position: 22px 22px; } }
 .progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 50; pointer-events: none; }
-.progress i { display: block; height: 100%; will-change: transform; background: linear-gradient(90deg, var(--clay), var(--blue)); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.progress i { display: block; height: 100%; will-change: transform; background: linear-gradient(90deg, var(--clay), var(--blue)); transform-origin: 0 50%; transform: scaleX(0); }
 
 /* hero */
 .home .hero { padding-block: 12px 0; }
@@ -306,7 +306,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 /* with physics the chips move into a fixed layer over the whole window and pile up on its bottom edge */
 .heap { position: fixed; inset: 0; z-index: 55; pointer-events: none; overflow: hidden; }
 .heap .stage { position: absolute; inset: 0; display: block; }
-.heap .stage li { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+.heap .stage li { position: absolute; left: 0; top: 100%; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
   box-shadow: 0 2px 0 rgba(20,20,19,.1); }   /* flat: a blurred shadow is re-blended every frame a chip or something over it moves */
 .heap .stage li[hidden] { display: none; }
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
@@ -335,6 +335,9 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .string { position: absolute; left: 0; top: -32px; width: 100%; height: 80px; overflow: visible; pointer-events: none; }
 .string.down { top: 0; left: -32px; width: 80px; height: 100%; }
 .string path { fill: none; stroke: url(#string-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* scroll springs (physics.js): each block is its own layer, so moving it costs no repaint */
+.physics :is(.kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more) { will-change: transform; }
 
 /* gravity mode (bodies.js) */
 /* while things fall, the dot field is a plain background painted with the page instead of its own full-screen canvas layer */

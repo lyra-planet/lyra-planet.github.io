@@ -6,6 +6,7 @@
 //   pixels   pixel icons assemble as they scroll in and scatter when touched
 //   string   the timeline is a string you can pluck; its dots ride on it
 //   bars     chart bars are coupled springs: brush across them and a ripple runs through
+//   scroll   every block of text and every box hangs on a spring while the page scrolls
 // Each loop stops when things come to rest. None of it runs under reduced motion.
 (() => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -18,8 +19,13 @@
   addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
   // scroll position, read once per scroll event: reading scrollY inside a frame, after other loops wrote
   // transforms, forces a synchronous style and layout pass
-  let SY = scrollY;
-  addEventListener("scroll", () => { SY = scrollY; }, { capture: true, passive: true });
+  let SY = scrollY, SV = 0, lastScroll = 0;
+  addEventListener("scroll", () => {
+    const now = performance.now(), dt = now - lastScroll;
+    SV = dt < 100 ? ((scrollY - SY) * 16.67) / Math.max(dt, 4) : 0;   // px per 60 fps frame
+    SY = scrollY; lastScroll = now;
+  }, { capture: true, passive: true });
+  const scrollSpeed = () => (performance.now() - lastScroll > 80 ? 0 : SV);
 
   // rAF loop that stops when step(dt) returns false; dt is in 60 fps frames, so 120 Hz screens run at the same speed
   const loop = (step) => {
@@ -47,7 +53,10 @@
     const key = (c, r) => r * 4096 + c;
     const get = (c, r) => { const k = key(c, r); let d = live.get(k); if (!d) live.set(k, (d = { ox: 0, oy: 0, vx: 0, vy: 0 })); return d; };
     const batches = Array.from({ length: 32 }, () => []);   // 4 colours x 8 alpha levels, one fill() each
-    let W = 0, H = 0, styles = [], waves = [], ptr = null, sy = SY, sv = 0, gy = 0, gv = 0, fx = [], whole = true, drawnSY = null, lastBox = null;
+    // The canvas is taller than the window by M above and below. Scrolling and the sway just slide it on the GPU
+    // (a transform); it is redrawn only when the page has scrolled near the edge of that margin.
+    const M = 220;
+    let W = 0, H = 0, styles = [], waves = [], ptr = null, sy = SY, sv = 0, gy = 0, gv = 0, fx = [], whole = true, drawnSY = SY, lastBox = null, shift = null;
     const paint = () => {
       const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), a = hex(css("--axis")), c = hex(css("--clay"));
       styles = [0, 0.4, 0.7, 1].flatMap((t) => Array.from({ length: 8 }, (_, l) => `rgba(${a.map((v, i) => Math.round(v + (c[i] - v) * t))},${(l + 1) / 8})`));
@@ -56,13 +65,13 @@
       // one canvas pixel per CSS pixel, scaled up crisp (image-rendering: pixelated): the dots are squares on a grid
       // anyway, and a full-screen canvas at 2x was the most expensive thing on the page (each frame hands its whole
       // bitmap to the compositor)
-      W = innerWidth; H = innerHeight; field.width = W; field.height = H; whole = true;
+      W = innerWidth; H = innerHeight; field.width = W; field.height = H + 2 * M; whole = true;
+      field.style.top = `${-M}px`; field.style.height = `${H + 2 * M}px`;
       fx = Array.from({ length: Math.ceil(W / G) + 2 }, (_, c) => ((c * G + G / 2 - 0.75 * W) / (0.8 * W)) ** 2);
     };
     // faint everywhere, brightest in an ellipse behind the hero
     const glow = (c, y) => { const h = Math.min(H, 900); return Math.max(0.3, 1 - Math.sqrt(fx[c] + ((y - 0.25 * h) / (0.7 * h)) ** 2) / 0.75); };
-    const view = () => ({ top: Math.floor(SY / G), rows: Math.ceil(H / G) + 1, cols: Math.ceil(W / G) });
-    const sheet = (x) => 0.55 + 0.45 * Math.sin((Math.PI * x) / W);   // the middle of the sheet lags more than its edges
+    const view = () => ({ top: Math.floor((drawnSY - M) / G), rows: Math.ceil((H + 2 * M) / G) + 1, cols: Math.ceil(W / G) });
 
     const step = (dt) => {
       const { top, rows, cols } = view(), damp = 0.86 ** dt;
@@ -108,36 +117,38 @@
       return moving;
     };
 
-    // Repaint everything after a scroll or while the sheet sways; otherwise only the box around displaced dots
-    // (this frame's and last frame's), so pushing dots with the pointer touches a few hundred pixels, not the screen.
+    // Slide the canvas for scroll and sway; repaint all of it only when the scroll nears the margin (or after a
+    // resize or theme change), otherwise only the box around displaced dots, this frame's and last frame's.
     const draw = () => {
-      const { top, rows, cols } = view();
+      if (whole || Math.abs(SY - drawnSY) > M - 60) { whole = true; drawnSY = SY; }
+      const t = (drawnSY - SY + gy).toFixed(1);
+      if (t !== shift) { field.style.transform = `translate3d(0, ${t}px, 0)`; shift = t; }
+      const { top, rows, cols } = view(), org = drawnSY - M;   // page y of the canvas's top row
       let box = null;
       for (const k of live.keys()) {
-        const r = Math.floor(k / 4096), x = (k - r * 4096) * G + G / 2, y = r * G + G / 2 - SY;
+        const r = Math.floor(k / 4096), x = (k - r * 4096) * G + G / 2, y = r * G + G / 2 - org;
         box = box ? [Math.min(box[0], x), Math.min(box[1], y), Math.max(box[2], x), Math.max(box[3], y)] : [x, y, x, y];
       }
-      const full = whole || SY !== drawnSY || gy !== 0 || sv !== 0;
-      let x0 = 0, y0 = 0, x1 = W, y1 = H;
-      if (!full) {
+      let x0 = 0, y0 = 0, x1 = W, y1 = H + 2 * M;
+      if (!whole) {
         const u = box && lastBox ? [Math.min(box[0], lastBox[0]), Math.min(box[1], lastBox[1]), Math.max(box[2], lastBox[2]), Math.max(box[3], lastBox[3])] : box || lastBox;
         lastBox = box;
         if (!u) return;
-        [x0, y0, x1, y1] = [Math.max(0, u[0] - 24), Math.max(0, u[1] - 24), Math.min(W, u[2] + 24), Math.min(H, u[3] + 24)];
+        [x0, y0, x1, y1] = [Math.max(0, u[0] - 24), Math.max(0, u[1] - 24), Math.min(W, u[2] + 24), Math.min(H + 2 * M, u[3] + 24)];
       }
-      lastBox = box; whole = false; drawnSY = SY;
+      lastBox = box; whole = false;
       ctx.save();
       ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
       ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
       for (const b of batches) b.length = 0;
-      const r0 = Math.max(top, Math.floor((y0 + SY) / G) - 1), r1 = Math.min(top + rows, Math.ceil((y1 + SY) / G) + 1);
+      const r0 = Math.max(Math.max(0, top), Math.floor((y0 + org) / G) - 1), r1 = Math.min(top + rows, Math.ceil((y1 + org) / G) + 1);
       for (let c = Math.max(0, Math.floor(x0 / G) - 1); c <= Math.min(cols, Math.ceil(x1 / G) + 1); c++) {
-        const x = c * G + G / 2, lag = gy * sheet(x);
+        const x = c * G + G / 2;
         for (let r = r0; r <= r1; r++) {
           const y = r * G + G / 2, d = live.get(key(c, r)), e = d ? Math.abs(d.ox) + Math.abs(d.oy) : 0;
           const al = Math.min(7, Math.round(Math.min(1, glow(c, y) + e / 50) * 8) - 1);
           if (al < 0) continue;
-          batches[Math.min(3, (e / 3.5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - SY + lag + (d ? d.oy : 0));
+          batches[Math.min(3, (e / 3.5) | 0) * 8 + al].push(x + (d ? d.ox : 0), y - org + (d ? d.oy : 0));
         }
       }
       batches.forEach((pts, i) => {              // colour runs from grid grey to clay as a dot is pushed further
@@ -169,7 +180,9 @@
     // mouse: a wave on every press; touch: only on a tap, so starting a scroll doesn't set one off
     addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") wave(e.clientX, e.clientY, e.target); }, { passive: true });
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) wave(e.clientX, e.clientY, e.target); }, { passive: true });
-    addEventListener("scroll", start, { passive: true });
+    // a wheel scroll slides the page under a resting cursor: that is not the pointer brushing the dots
+    // (a finger scrolling does brush them: touchmove sets the pointer again)
+    addEventListener("scroll", () => { if (lastPointer === "mouse") ptr = null; start(); }, { passive: true });
     addEventListener("resize", () => { size(); start(); });
     onTheme(() => { paint(); whole = true; draw(); });
     size(); paint(); draw();
@@ -447,6 +460,63 @@
     tl.addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) strum(rel(e).u, rel(e).w < 0 ? -7 : 7); });
     addEventListener("resize", () => { layout(); draw(); });
     layout(); draw();
+  }
+
+  // ---------- scroll ----------
+  // Each block follows its place on the page through a spring, like the bubbles in a chat app: it trails a little
+  // while the page moves, and overshoots and settles when the page stops. Blocks far from the finger (or the
+  // pointer) hang on softer springs, so the page stretches around where you hold it.
+  // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
+  const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more";
+  const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
+    .map((el) => ({ el, top: 0, h: 0, y: 0, v: 0, shown: false }));
+  if (blocks.length) {
+    const HS = 0.5, MAXY = 28;                  // fixed half-frame steps (stiff springs, any refresh rate); offset cap in px
+    let acc = 0, anchor = null, frozen = false;
+    const place = () => {                         // page positions, read once and on resize; translate never moves layout
+      for (const b of blocks) b.el.style.translate = "";
+      for (const b of blocks) { const r = b.el.getBoundingClientRect(); b.top = r.top + SY; b.h = r.height; b.y = b.v = 0; }
+    };
+    const step = (dt) => {
+      if (frozen) return false;
+      const H = innerHeight, sv = scrollSpeed(), lo = SY - 300, hi = SY + H + 300;
+      const ay = anchor ?? H / 2;
+      acc = Math.min(acc + dt, 6);
+      let live = sv !== 0;
+      while (acc >= HS) {
+        acc -= HS;
+        for (const b of blocks) {
+          if (b.top + b.h < lo || b.top > hi) { b.y = b.v = 0; continue; }
+          // lag in frames: 0.25 next to the hand, up to 1.5 a screen away
+          const far = Math.min(1, Math.abs(b.top + b.h / 2 - SY - ay) / H), lag = 0.25 + 1.25 * far, c = 0.14, k = c / lag;
+          // offset y from the block's place: spring k, drag c against the page's motion (this is what makes it trail), damping
+          b.v += (c * sv - k * b.y - 0.32 * b.v) * HS;
+          b.y = clamp(b.y + b.v * HS, -MAXY, MAXY);
+        }
+      }
+      for (const b of blocks) {
+        const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.05;
+        live ||= moving;
+        if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; }
+        else if (b.shown) { b.el.style.translate = ""; b.shown = false; b.y = b.v = 0; }
+      }
+      return live;
+    };
+    const start = loop(step);
+    addEventListener("scroll", start, { passive: true });
+    addEventListener("touchstart", (e) => { anchor = e.touches[0].clientY; }, { passive: true });
+    addEventListener("touchmove", (e) => { anchor = e.touches[0].clientY; }, { passive: true });
+    addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") anchor = e.clientY; }, { passive: true });
+    let rt = 0;
+    addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(place, 200); });
+    // gravity mode measures every element right after this event: hand it a page without offsets
+    document.addEventListener("gravitychange", () => {
+      frozen = held();
+      if (frozen) for (const b of blocks) { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; }
+      else place();
+    });
+    if (document.fonts) document.fonts.ready.then(place); else place();
+    addEventListener("load", place, { once: true });
   }
 
   // ---------- bars ----------

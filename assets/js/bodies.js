@@ -66,7 +66,7 @@
     }
     const ring = document.createElement("i");
     ring.className = "boom";
-    ring.style.left = `${ringAt.x}px`; ring.style.top = `${ringAt.y}px`;
+    ring.style.left = `${ringAt.x}px`; ring.style.top = typeof ringAt.y === "number" ? `${ringAt.y}px` : ringAt.y;
     ring.addEventListener("animationend", () => ring.remove());
     ringHost.append(ring);
   };
@@ -82,6 +82,9 @@
   // ---------- stack: chips that live at the bottom of the window ----------
   // The whole window is the box: the floor is its bottom edge, the walls its sides. Resizing the window moves
   // the walls, so the chips get pushed; scrolling moves the window over the page, so they feel the jolt.
+  // Coordinates are measured up from the bottom edge (the floor is y = 0, the top of the window is y = -H) and
+  // the chips are placed from the bottom in CSS, so when a phone's toolbar slides away and the window grows,
+  // the pile rides the bottom edge at once instead of hanging in the air until a resize event moves the floor.
   const pitRun = (() => {
     if (!stage) return () => {};
     const layer = document.createElement("div");
@@ -91,7 +94,7 @@
     let box = { w: 0, h: 0, bl: 0, bt: 0 };      // the window and the gravity button's corner, measured on resize only
     const measure = () => {
       const g = gbtn && gbtn.getBoundingClientRect();
-      box = { w: layer.clientWidth, h: layer.clientHeight, bl: g ? g.left : 0, bt: g ? g.top : 0, bh: g ? g.height : 0 };
+      box = { w: layer.clientWidth, h: layer.clientHeight, bl: g ? g.left : 0, bt: g ? g.top - layer.clientHeight : 0, bh: g ? g.height : 0 };
     };
     const T = 400, BIG = 20000, small = () => innerWidth < 640 || innerHeight < 520;
 
@@ -110,20 +113,20 @@
       all.forEach((el, i) => { el.hidden = few && i >= 8; el.style.transform = ""; });
       items = all.filter((el) => !el.hidden).map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
       const wall = { isStatic: true };
-      walls = {                                   // huge, so a resize only ever has to move the right wall and the floor
-        floor: Bodies.rectangle(W / 2, H + T / 2, BIG, T, wall),
+      walls = {                                   // huge, so a resize only ever has to move the right wall
+        floor: Bodies.rectangle(W / 2, T / 2, BIG, T, wall),
         left: Bodies.rectangle(-T / 2, 0, T, BIG, wall),
         right: Bodies.rectangle(W + T / 2, 0, T, BIG, wall),
       };
       // the gravity button is furniture: a block from the button to the window's corner, so chips pile on it and
-      // can't slip into the gap beneath it. The button is pinned to the corner, so the block keeps its size.
+      // can't slip into the gap beneath it. It is pinned to the corner: its size and height above the floor never change.
       if (gbtn) {
-        const w = W + 40 - box.bl, h = H + 40 - box.bt;
+        const w = W + 40 - box.bl, h = 40 - box.bt;
         walls.button = Bodies.rectangle(box.bl + w / 2, box.bt + h / 2, w, h, { ...wall, chamfer: { radius: [box.bh / 2, 0, 0, 0] } });
         walls.button.centre = () => ({ x: box.bl + w / 2, y: box.bt + h / 2 });
       }
       Composite.add(engine.world, Object.values(walls));
-      let y = -10, x = 0;
+      let y = -H - 10, x = 0;
       bodies = items.map((it) => {               // they rain in from just above the window, a few side by side per row
         if (x + it.w > W) { x = 0; y -= it.h + 10; }
         const cx = x + it.w / 2 + Math.random() * 12;
@@ -143,31 +146,34 @@
     // the lid (the window's top edge) goes on once every chip has fallen in; after 4 s, stragglers are dropped back inside
     const lid = () => {
       if (ceiling) return;
-      if (performance.now() - born < 4000 && !bodies.every((b) => b.bounds.min.y > 0)) return;
-      for (const b of bodies) if (b.bounds.min.y < 0) place(b, { x: b.position.x, y: 40 });
-      ceiling = M.Bodies.rectangle(W / 2, -T / 2, BIG, T, { isStatic: true });
+      if (performance.now() - born < 4000 && !bodies.every((b) => b.bounds.min.y > -H)) return;
+      for (const b of bodies) if (b.bounds.min.y < -H) place(b, { x: b.position.x, y: -H + 40 });
+      ceiling = M.Bodies.rectangle(W / 2, -H - T / 2, BIG, T, { isStatic: true });
       M.Composite.add(engine.world, ceiling);
     };
-    // walls follow the window edges at up to 25 px a frame, so a resize pushes the chips instead of teleporting past them
+    // the right wall, the lid and the button's block follow the window at up to 25 px a frame, so a resize pushes
+    // the chips instead of teleporting past them; the floor is the bottom edge and never moves
     const follow = () => {
-      const tx = box.w + T / 2, ty = box.h + T / 2, r = walls.right.position, f = walls.floor.position;
-      if (walls.button) {
-        const { x: gx, y: gy } = walls.button.centre(), b = walls.button.position;
-        if (b.x !== gx || b.y !== gy) M.Body.setPosition(walls.button, { x: b.x + clamp(gx - b.x, -25, 25), y: b.y + clamp(gy - b.y, -25, 25) });
-      }
-      if (r.x === tx && f.y === ty) return false;
-      M.Body.setPosition(walls.right, { x: r.x + clamp(tx - r.x, -25, 25), y: r.y });
-      M.Body.setPosition(walls.floor, { x: f.x, y: f.y + clamp(ty - f.y, -25, 25) });
-      W = walls.right.position.x - T / 2; H = walls.floor.position.y - T / 2;
-      bodies.forEach((b) => M.Sleeping.set(b, false));
-      return true;
+      let moved = false;
+      const step = (body, x, y) => {
+        const p = body.position;
+        if (p.x === x && p.y === y) return;
+        M.Body.setPosition(body, { x: p.x + clamp(x - p.x, -25, 25), y: p.y + clamp(y - p.y, -25, 25) });
+        moved = true;
+      };
+      step(walls.right, box.w + T / 2, walls.right.position.y);
+      if (walls.button) { const c = walls.button.centre(); step(walls.button, c.x, c.y); }
+      if (ceiling) step(ceiling, ceiling.position.x, -box.h - T / 2);
+      W = walls.right.position.x - T / 2; H = ceiling ? -ceiling.position.y - T / 2 : box.h;
+      if (moved) bodies.forEach((b) => M.Sleeping.set(b, false));
+      return moved;
     };
     // safety net: anything that escapes (a hard throw, a fast resize) drops back in from the top
     const rescue = () => {
       for (const b of bodies) {
         const p = b.position;
-        if (p.x > -60 && p.x < W + 60 && p.y < H + 60 && !(ceiling && p.y < -60)) continue;
-        place(b, { x: W / 2, y: 40 });
+        if (p.x > -60 && p.x < W + 60 && p.y < 60 && !(ceiling && p.y < -H - 60)) continue;
+        place(b, { x: W / 2, y: -H + 40 });
         M.Body.setVelocity(b, { x: 0, y: 0 });
       }
     };
@@ -208,10 +214,12 @@
       requestAnimationFrame(tick);
     };
 
-    const at = (e) => ({ x: e.clientX, y: e.clientY });
-    const inside = (p) => ({ x: clamp(p.x, 6, W - 6), y: clamp(p.y, 6, H - 6) });   // the hand stays in the window, so it can't drag a chip through a wall
+    // pointer -> world: x from the left edge, y up from the bottom edge (read in the event, where a layout read is cheap)
+    const at = (e) => { const r = layer.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.bottom }; };
+    const inside = (p) => ({ x: clamp(p.x, 6, W - 6), y: clamp(p.y, -H + 6, -6) });   // the hand stays in the window, so it can't drag a chip through a wall
     const hit = (p) => M.Query.point(bodies, p)[0];
-    const pop = (p, reach, power) => { kick(bodies, p, reach, power, stage, p); run(); };
+    const ringAt = (p) => ({ x: p.x, y: `calc(100% + ${p.y}px)` });
+    const pop = (p, reach, power) => { kick(bodies, p, reach, power, stage, ringAt(p)); run(); };
 
     stage.addEventListener("pointerdown", (e) => {
       grabbed = false;
@@ -246,7 +254,7 @@
     const nearby = (e) => {
       if (!engine || e.target.closest(".heap, .grav") || root.classList.contains("gravity")) return;
       const p = at(e);
-      if (bodies.some((b) => Math.hypot(b.position.x - p.x, b.position.y - p.y) < 220)) { kick(bodies, p, 220, 14, stage, p); run(); }
+      if (bodies.some((b) => Math.hypot(b.position.x - p.x, b.position.y - p.y) < 220)) { kick(bodies, p, 220, 14, stage, ringAt(p)); run(); }
     };
     addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") nearby(e); }, { passive: true });
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) nearby(e); }, { passive: true });

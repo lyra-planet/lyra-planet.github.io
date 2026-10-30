@@ -81,12 +81,18 @@
     c.style.setProperty("--my", `${e.clientY - r.top}px`);
   }));
 
-  const bar = document.querySelector(".progress");
+  // reading scrollHeight inside a frame, after the physics loops wrote styles, recomputed the page's style every
+  // scroll frame: the page height is read on load and resize only, the scroll position in the scroll event
+  const bar = document.querySelector(".progress i");
   if (bar) {
-    let queued = false;
-    const draw = () => { queued = false; const h = document.documentElement; bar.style.setProperty("--p", h.scrollTop / Math.max(1, h.scrollHeight - h.clientHeight)); };
-    addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(draw); } }, { passive: true });
-    draw();
+    let queued = false, max = 1, y = scrollY;
+    const measure = () => { const h = document.documentElement; max = Math.max(1, h.scrollHeight - h.clientHeight); y = scrollY; draw(); };
+    const draw = () => { queued = false; bar.style.transform = `scaleX(${(y / max).toFixed(4)})`; };
+    addEventListener("scroll", () => { y = scrollY; if (!queued) { queued = true; requestAnimationFrame(draw); } }, { passive: true });
+    addEventListener("resize", measure);
+    addEventListener("load", measure, { once: true });
+    if ("ResizeObserver" in window) new ResizeObserver(measure).observe(document.body);
+    measure();
   }
 
   const box = document.querySelector(".usage");
