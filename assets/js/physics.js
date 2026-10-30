@@ -452,57 +452,59 @@
   }
 
   // ---------- scroll ----------
-  // Each block follows its place on the page through a spring, like the bubbles in a chat app: it trails while the
-  // page moves, and overshoots and settles when it stops. What makes the page feel like cloth rather than one slab
-  // is that no two blocks move alike: a block's spring is softer the farther it is from the finger or pointer (in
-  // both directions, so cards in one row differ), the bigger it is, and by a random +-20%; and a trailing block
-  // tilts away from the hand, left of it one way and right of it the other.
-  // Offsets go in the `translate` and `rotate` properties, which stack with the `transform` that hover tilt and
-  // gravity write.
+  // The Messages-app bubbles (iOS 7), as Ash Furrow rebuilt them with UIKit Dynamics (objc.io issue 5): every block
+  // hangs on the same spring at its place. Each frame the page scrolls d px, a block is held back by d x resistance,
+  // where resistance grows with its distance from the finger or pointer, x and y added (capped below 1). The block
+  // under the hand moves 1:1 with the page; farther ones trail, and the spring brings them home.
+  // One spring for all (damping ratio 0.85: barely any overshoot, as Apple's "Designing Fluid Interfaces" advises
+  // for motion that follows a gesture), so neighbours move as one cloth, with no wobble out of step.
+  // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
   const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more";
   const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
-    .map((el) => ({ el, top: 0, h: 0, cx: 0, mass: 1, jit: 0.8 + Math.random() * 0.4, y: 0, v: 0, shown: false }));
+    .map((el) => ({ el, top: 0, h: 0, cx: 0, y: 0, v: 0, shown: false }));
   if (blocks.length) {
-    const HS = 0.5, MAXY = 40;                  // fixed half-frame steps (stiff springs, any refresh rate); offset cap in px
-    let acc = 0, anchor = null, anchorX = null, frozen = false;
-    const clear = (b) => { b.el.style.translate = ""; b.el.style.rotate = ""; b.y = b.v = 0; b.shown = false; };
+    const HS = 0.5, MAXY = 48;                  // fixed half-frame steps; offset cap in px
+    const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // 1.6 Hz (the original used 1 Hz; page scrolls are faster than a thumb), damping ratio
+    let acc = 0, anchor = null, anchorX = null, frozen = false, last = SY;
+    const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
       for (const b of blocks) clear(b);
       for (const b of blocks) {
         const r = b.el.getBoundingClientRect();
         b.top = r.top + SY; b.h = r.height; b.cx = r.left + r.width / 2;
-        b.mass = clamp(Math.sqrt(r.width * r.height) / 260, 0.55, 1.6);   // a big box is heavy and slow, a line of text light
       }
+      last = SY;
     };
     const step = (dt) => {
-      if (frozen) return false;
-      const H = innerHeight, W = innerWidth, sv = scrollSpeed(), lo = SY - 300, hi = SY + H + 300;
-      const ay = anchor ?? H / 2, ax = anchorX ?? W / 2;
+      if (frozen) { last = SY; return false; }
+      const H = innerHeight, W = innerWidth, lo = SY - 300, hi = SY + H + 300;
+      const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);   // the 1500 of the original, scaled to the window
+      let d = SY - last;
+      last = SY;
+      if (Math.abs(d) > 400) d = 0;              // a jump (an anchor link, a restored position) is not a scroll
+      let live = d !== 0;
+      for (const b of blocks) {
+        if (b.top + b.h < lo || b.top > hi) { if (b.shown) clear(b); b.y = b.v = 0; continue; }
+        if (d) {
+          const resistance = Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - SY - ay)) / span);
+          b.y = clamp(b.y + d * resistance, -MAXY, MAXY);   // held back: the page moved d, this block d x (1 - resistance)
+        }
+      }
       acc = Math.min(acc + dt, 6);
-      let live = sv !== 0;
       while (acc >= HS) {
         acc -= HS;
         for (const b of blocks) {
-          if (b.top + b.h < lo || b.top > hi) { b.y = b.v = 0; continue; }
-          // lag in frames: about 0.15 right at the hand, up to ~3 for a big box a screen away
-          const far = Math.min(1.3, Math.hypot((b.cx - ax) / W, (b.top + b.h / 2 - SY - ay) / H));
-          const lag = (0.15 + 1.5 * far) * b.mass * b.jit, c = 0.14, k = c / lag;
-          // offset y from the block's place: spring k, drag c against the page's motion (this is what makes it
-          // trail), damping (lighter for heavy blocks, so they swing a little longer)
-          b.v += (c * sv - k * b.y - (0.36 / b.mass) * Math.sqrt(k / 0.14) * 0.6 * b.v) * HS;
-          b.y = clamp(b.y + b.v * HS, -MAXY, MAXY);
+          if (!b.y && !b.v) continue;
+          b.v += (-OMEGA * OMEGA * b.y - 2 * ZETA * OMEGA * b.v) * HS;
+          b.y += b.v * HS;
         }
       }
       for (const b of blocks) {
-        const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.05;
+        const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
         live ||= moving;
-        if (moving) {
-          // tilt away from the hand: a block right of it turns one way, left of it the other, more the more it trails
-          const tilt = clamp((b.y * (b.cx - ax)) / W / 6, -3, 3);
-          b.el.style.translate = `0 ${b.y.toFixed(1)}px`;
-          b.el.style.rotate = `${tilt.toFixed(2)}deg`;
-          b.shown = true;
-        } else if (b.shown) clear(b);
+        if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; }
+        else if (b.shown) clear(b);
+        else b.y = b.v = 0;
       }
       return live;
     };
