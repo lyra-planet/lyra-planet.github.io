@@ -9,9 +9,6 @@
     try { localStorage.setItem("theme", next); } catch (e) { /* private mode: ignore */ }
   });
   document.querySelector(".print")?.addEventListener("click", () => window.print());
-  // the hidden theme's planet is lazy, so the first load skips it; fetch it once the page has settled, so a theme
-  // switch never shows an empty frame
-  addEventListener("load", () => setTimeout(() => document.querySelectorAll(".hero-art img").forEach((i) => { i.loading = "eager"; }), 3000), { once: true });
 
   // ---- frame meter: add #fps to the address; frames per second and the slowest frame of the last second ----
   if (/fps/.test(location.hash)) {

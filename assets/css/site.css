@@ -82,7 +82,15 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
 .now dt { color: var(--muted); } .now dd { margin: 0; color: var(--ink2); }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 30px 0 0; }
 .hero-art { margin: 0; padding: 18px 18px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 1px 0 var(--border), 0 18px 40px -24px rgba(20,20,19,.35); }
-.hero-art img { display: block; width: 100%; }
+/* the planet in layers (scripts/planet.py): each moving part is its own element that changes only opacity or position,
+   so the compositor plays it; as one animated SVG image it was repainted whole every frame (on phones, every frame of a scroll) */
+.planet { position: relative; content-visibility: auto; contain-intrinsic-size: auto 300px; }   /* scrolled away: skipped, animations and all */
+.planet.hold * { animation-play-state: paused; }   /* physics.js: held still while the page scrolls */
+.planet .pl-x, .planet .pl-pm img { position: absolute; display: block; max-width: none; }
+.planet svg.pl-x { overflow: visible; }   /* a cell's edge may sit on its layer's edge */
+.planet .pl-panel { overflow: hidden; }
+.planet .pl-pm { clip-path: url(#pl-pm); }
+.planet .pl-defs { position: absolute; }
 .hero-art figcaption { font: 12px var(--mono); color: var(--muted); margin-top: 6px; text-align: right; }
 .only-dark { display: none !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .only-dark { display: block !important; } :root:not([data-theme="light"]) .only-light { display: none !important; } }
@@ -236,8 +244,8 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .badges { list-style: none; padding: 0; margin: 26px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .badges li { display: flex; flex-direction: column; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .badges b { font: 600 15px/1.3 var(--serif); } .badges span { font: 11.5px/1.4 var(--mono); color: var(--muted); }
-.hero-art img { transition: transform .6s cubic-bezier(.2,.8,.2,1); will-change: transform; }   /* own layer: the animated planet repaints itself, not the page */
-.hero-art:hover img { transform: scale(1.03) rotate(-1deg); }
+.hero-art .planet { transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.hero-art:hover .planet { transform: scale(1.03) rotate(-1deg); }
 
 /* live usage band: a dark terminal strip in both themes; local tokens repaint the chart for it */
 .band { --surface: #141413; --border: #34332f; --ink: #faf9f5; --ink2: #c2c0b6; --muted: #8f8c84; --grid: #2a2927; --axis: #45443f; --clay: #d97757; --clay-text: #e8956f;
@@ -409,6 +417,6 @@ html.lenis, html.lenis body { height: auto; }
 @media (max-width: 480px) { .hl b { font-size: 36px; } .hl { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) {
   body.home::before, .js .title span, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none !important; }
-  .js .reveal, .timeline::before, .hero-art img { transition: none; }
+  .js .reveal, .timeline::before, .hero-art .planet { transition: none; }
   .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1; transform: none; }
 }
