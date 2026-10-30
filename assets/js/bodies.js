@@ -41,9 +41,10 @@
   const scrollSpeed = () => (performance.now() - lastScroll > 80 ? 0 : SV);
   // Matter steps at a fixed 60 Hz. Each frame is drawn between the last two steps, so motion stays smooth on
   // 120 Hz screens instead of moving every other frame.
-  const advance = (engine, bodies, acc, held) => {
+  const advance = (engine, bodies, acc, held, each) => {
     while (acc >= STEP) {
       if (held) M.Sleeping.set(held, false);   // a body in the hand never sleeps (it froze mid-drag when the hand slowed)
+      if (each) each();
       for (const b of bodies) { b.px = b.position.x; b.py = b.position.y; b.pa = b.angle; }
       M.Engine.update(engine, STEP);
       acc -= STEP;
@@ -97,7 +98,7 @@
     if (!stage) return () => {};
     const layer = document.createElement("div");
     layer.className = "heap";
-    let engine = null, items = [], bodies = [], walls = null, grab = null, grabbed = false, ceiling = null, born = 0, few = false;
+    let engine = null, items = [], bodies = [], walls = null, grab = null, grabbed = false, ceiling = null, born = 0, stirred = false;
     let running = false, last = 0, acc = 0, sv = 0, W = innerWidth, H = innerHeight;
     let box = { w: 0, h: 0, bl: 0, bt: 0 };      // the window and the gravity button's corner, measured on resize only
     const measure = () => {
@@ -116,7 +117,9 @@
       if (!layer.isConnected) { document.body.append(layer); layer.append(stage); pit.classList.add("armed"); }
       measure();
       W = box.w; H = box.h;                       // the layer's own box: innerWidth would count the scrollbar
-      few = small();                              // phones (either way up) get eight chips: the gravity button takes part of a narrow floor
+      // phones (either way up) get eight chips: the gravity button takes part of a narrow floor. Picked once, at load:
+      // a resize never takes chips away (dragging a window below 640 px used to hide 14 of them)
+      const few = small();
       const all = [...stage.querySelectorAll("li")];
       all.forEach((el, i) => { el.hidden = few && i >= 8; el.style.transform = ""; });
       items = all.filter((el) => !el.hidden).map((el) => ({ el, w: el.offsetWidth, h: el.offsetHeight }));
@@ -179,7 +182,7 @@
       ceiling = M.Bodies.rectangle(W / 2, -H - T / 2, BIG, T, { isStatic: true });
       M.Composite.add(engine.world, ceiling);
     };
-    // the right wall, the lid and the button's block follow the window at up to 25 px a frame, so a resize pushes
+    // the right wall, the lid and the button's block follow the window at up to 25 px a step, so a resize pushes
     // the chips instead of teleporting past them; the floor is the bottom edge and never moves
     const follow = () => {
       let moved = false;
@@ -193,9 +196,12 @@
       if (walls.button) { const c = walls.button.centre(); step(walls.button, c.x, c.y); }
       if (ceiling) step(ceiling, ceiling.position.x, -box.h - T / 2);
       W = walls.right.position.x - T / 2; H = ceiling ? -ceiling.position.y - T / 2 : box.h;
-      if (moved) bodies.forEach((b) => M.Sleeping.set(b, false));
-      return moved;
+      if (moved) { bodies.forEach((b) => M.Sleeping.set(b, false)); stirred = true; }
     };
+    // how far the walls are still behind the window
+    const behind = () => Math.max(Math.abs(box.w + T / 2 - walls.right.position.x),
+      walls.button ? Math.abs(walls.button.centre().x - walls.button.position.x) : 0,
+      ceiling ? Math.abs(-box.h - T / 2 - ceiling.position.y) : 0);
     // safety net: anything that escapes (a hard throw, a fast resize) drops back in from the top
     const rescue = () => {
       for (const b of bodies) {
@@ -230,10 +236,14 @@
     const tick = (t) => {
       if (document.hidden) { running = false; return; }
       acc += Math.min(100, t - last); last = t;
-      const moved = follow();
-      acc = advance(engine, bodies, acc, grab && grab.bodyB);
+      // the walls move inside the steps. A window that narrowed faster than they move (a quick drag, a snap to half
+      // the screen) gets the extra steps in this frame, so no chip is left outside the window while they catch up:
+      // at one step a frame, a snap from 1440 to 720 px kept 7 chips out of sight for half a second
+      acc = Math.max(acc, Math.min(60, Math.ceil(behind() / 25)) * STEP);
+      stirred = false;
+      acc = advance(engine, bodies, acc, grab && grab.bodyB, follow);
       inertia(); lid(); rescue(); sync();
-      if (!grab && !moved && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
+      if (!grab && !stirred && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
       requestAnimationFrame(tick);
     };
     const run = () => {
@@ -292,12 +302,7 @@
     else addEventListener("load", () => setTimeout(start, 900), { once: true });   // after the hero's entrance has mostly run
     document.addEventListener("visibilitychange", () => run());
     addEventListener("scroll", () => run(), { passive: true });
-    addEventListener("resize", () => {
-      if (!engine) return;
-      measure();
-      if (small() !== few && !grab) { clearTimeout(build.t); build.t = setTimeout(build, 300); return; }   // crossed the phone breakpoint: new set of chips
-      run();
-    });
+    addEventListener("resize", () => { if (engine) { measure(); run(); } });
     return () => { bodies.forEach((b) => M.Sleeping.set(b, false)); run(); };
   })();
 
