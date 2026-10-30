@@ -348,6 +348,17 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 /* scroll springs (physics.js): each block is its own layer, so moving it costs no repaint */
 .physics :is(.kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more) { will-change: transform; }
 
+/* Lenis smooth wheel (its own stylesheet, inlined) */
+html.lenis, html.lenis body { height: auto; }
+.lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+/* scroll-effect comparison panel, only with #lab in the address */
+.lab { position: fixed; left: 12px; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 70; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  padding: 6px; border-radius: 12px; background: #141413; color: #faf9f5; font: 500 12px var(--mono); box-shadow: 0 10px 30px -12px rgba(20,20,19,.6); }
+.lab span { padding: 0 6px; color: #8f8c84; }
+.lab button { font: inherit; color: inherit; background: transparent; border: 1px solid #34332f; border-radius: 8px; padding: 5px 9px; cursor: pointer; }
+.lab button[aria-pressed="true"] { background: var(--clay); border-color: var(--clay); color: #fff; }
+
 /* gravity mode (bodies.js) */
 /* while things fall, the dot field is a plain background painted with the page instead of its own full-screen canvas layer */
 :root { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%23d1cec4'/%3E%3C/svg%3E"); }

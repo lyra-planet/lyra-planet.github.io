@@ -11,7 +11,7 @@
   document.querySelector(".print")?.addEventListener("click", () => window.print());
 
   // ---- frame meter: add #fps to the address; frames per second and the slowest frame of the last second ----
-  if (location.hash === "#fps") {
+  if (/fps/.test(location.hash)) {
     const box = document.createElement("div");
     box.className = "fps";
     document.body.append(box);

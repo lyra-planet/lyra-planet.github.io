@@ -452,77 +452,130 @@
   }
 
   // ---------- scroll ----------
-  // The Messages-app bubbles (iOS 7), as Ash Furrow rebuilt them with UIKit Dynamics (objc.io issue 5): every block
-  // hangs on the same spring at its place. Each frame the page scrolls d px, a block is held back by d x resistance,
-  // where resistance grows with its distance from the finger or pointer, x and y added (capped below 1). The block
-  // under the hand moves 1:1 with the page; farther ones trail, and the spring brings them home.
-  // One spring for all (damping ratio 0.85: barely any overshoot, as Apple's "Designing Fluid Interfaces" advises
-  // for motion that follows a gesture), so neighbours move as one cloth, with no wobble out of step.
+  // What blocks do while the page scrolls. Lessons that shaped this (1030):
+  //  - A script that moves elements after the browser has scrolled on its own thread is one frame late: the
+  //    element follows the page, then snaps back - a constant jitter (Mozilla, "Scroll-linked effects").
+  //    So on desktop the wheel goes through Lenis (smooth scrolling on the main thread), and the effects are
+  //    computed in the same frame as the scroll. Touch keeps the phone's own scrolling.
+  //  - Springs that differ per block wobble out of step and read as jelly; the look people build on purpose
+  //    (GSAP ScrollSmoother's "lag", Codrops' Elastic Grid Scroll) is a time-based catch-up with no overshoot,
+  //    spread symmetrically: the middle of a grid arrives first, its edges a little later.
+  // Several takes stay selectable with #lab in the address (or #scroll=grid|bubble|skew|off|native):
+  //   grid    (default) catch-up lag that grows from the centre of the content to its edges
+  //   bubble  iOS Messages bubbles: one spring, held back by distance from the pointer
+  //   skew    the content leans with scroll speed and eases back
+  //   off     smooth wheel only;  native  the browser's own scrolling, nothing added
   // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
   const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more";
   const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
-    .map((el) => ({ el, top: 0, h: 0, cx: 0, y: 0, v: 0, shown: false }));
+    .map((el) => ({ el, top: 0, h: 0, cx: 0, dist: 0, y: 0, v: 0, shown: false }));
+  const sections = [...document.querySelectorAll("main > section")];
+  const MODES = ["grid", "bubble", "skew", "off", "native"];
+  const fromHash = /scroll=(\w+)/.exec(location.hash)?.[1];
+  let mode = MODES.includes(fromHash) ? fromHash : (() => { try { return localStorage.getItem("scroll-mode"); } catch (e) { return null; } })();
+  if (!MODES.includes(mode)) mode = "grid";
+  const coarse = matchMedia("(pointer: coarse)").matches;
   if (blocks.length) {
-    const HS = 0.5, MAXY = 48;                  // fixed half-frame steps; offset cap in px
-    const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // 1.6 Hz (the original used 1 Hz; page scrolls are faster than a thumb), damping ratio
-    let acc = 0, anchor = null, anchorX = null, frozen = false, last = SY;
+    const MAXY = 48, TAU_EDGE = 0.035, TAU_V = 0.12;   // grid: lag in s at the content's edge (0 in its middle); speed smoothing in s
+    const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // bubble spring, per 60 fps frame
+    let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false;
     const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
+    const clearSkew = () => { if (skewShown) sections.forEach((s) => (s.style.transform = "")); skewShown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
       for (const b of blocks) clear(b);
+      const wrap = document.querySelector("main").getBoundingClientRect(), mid = wrap.left + wrap.width / 2, half = wrap.width / 2;
       for (const b of blocks) {
         const r = b.el.getBoundingClientRect();
         b.top = r.top + SY; b.h = r.height; b.cx = r.left + r.width / 2;
+        b.dist = clamp(Math.abs(b.cx - mid) / half, 0, 1);   // 0 in the middle of the content, 1 at its edge
       }
-      last = SY;
+      last = scrollPos();
     };
-    const step = (dt) => {
-      if (frozen) { last = SY; return false; }
-      const H = innerHeight, W = innerWidth, lo = SY - 300, hi = SY + H + 300;
-      const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);   // the 1500 of the original, scaled to the window
-      let d = SY - last;
-      last = SY;
-      if (Math.abs(d) > 400) d = 0;              // a jump (an anchor link, a restored position) is not a scroll
-      let live = d !== 0;
-      for (const b of blocks) {
-        if (b.top + b.h < lo || b.top > hi) { if (b.shown) clear(b); b.y = b.v = 0; continue; }
-        if (d) {
-          const resistance = Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - SY - ay)) / span);
-          b.y = clamp(b.y + d * resistance, -MAXY, MAXY);   // held back: the page moved d, this block d x (1 - resistance)
+    const scrollPos = () => (lenis ? lenis.animatedScroll : SY);
+    const useLenis = () => !coarse && mode !== "native" && window.Lenis;
+    const setLenis = () => {
+      if (useLenis() && !lenis) {
+        lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, autoRaf: false, anchors: true });
+        lenis.on("scroll", kick);
+      } else if (!useLenis() && lenis) { lenis.destroy(); lenis = null; }
+    };
+
+    const frame = (t) => {
+      raf = 0;
+      const dt = clamp((t - (lastT || t - 16.7)) / 1000, 0.001, 0.05);
+      lastT = t;
+      if (lenis) lenis.raf(t);
+      const H = innerHeight, W = innerWidth, pos = scrollPos(), lo = pos - 300, hi = pos + H + 300;
+      let d = pos - last;
+      last = pos;
+      if (Math.abs(d) > 400 || frozen) d = 0;   // a jump (an anchor link, a restored position) is not a scroll
+      let live = d !== 0 || (lenis && lenis.isScrolling) || vs !== 0;
+      // smoothed scroll speed, px/s: a wheel arrives in notches, and following each notch made blocks pulse
+      vs += (d / dt - vs) * (1 - Math.exp(-dt / TAU_V));
+      if (Math.abs(vs) < 2 && !d) vs = 0;
+      if (mode === "skew") {
+        const s = clamp(-vs / 500, -3, 3);
+        if (Math.abs(s) > 0.01 || skewShown) {
+          sections.forEach((sec) => (sec.style.transform = Math.abs(s) > 0.01 ? `skewY(${s.toFixed(2)}deg)` : ""));
+          skewShown = Math.abs(s) > 0.01;
         }
-      }
-      acc = Math.min(acc + dt, 6);
-      while (acc >= HS) {
-        acc -= HS;
+        live ||= skewShown;
+      } else if (skewShown) clearSkew();
+      if (mode === "grid" || mode === "bubble") {
+        const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);
+        const sub = Math.max(1, Math.round(dt * 120)), h = (dt * 60) / sub;
         for (const b of blocks) {
-          if (!b.y && !b.v) continue;
-          b.v += (-OMEGA * OMEGA * b.y - 2 * ZETA * OMEGA * b.v) * HS;
-          b.y += b.v * HS;
+          if (b.top + b.h < lo || b.top > hi) { if (b.shown) clear(b); continue; }
+          if (mode === "grid") {
+            // a block trails by (its lag x the smoothed speed): every block in step, edges later than the middle,
+            // easing home as the speed fades; tanh rounds off the cap instead of flattening against it
+            b.y = MAXY * Math.tanh((TAU_EDGE * b.dist * vs) / MAXY);
+          } else {
+            if (d) b.y = clamp(b.y + d * Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - pos - ay)) / span), -MAXY, MAXY);
+            for (let i = 0; i < sub; i++) { b.v += (-OMEGA * OMEGA * b.y - 2 * ZETA * OMEGA * b.v) * h; b.y += b.v * h; }
+          }
+          const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
+          live ||= moving;
+          if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; }
+          else if (b.shown) clear(b);
         }
-      }
-      for (const b of blocks) {
-        const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
-        live ||= moving;
-        if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; }
-        else if (b.shown) clear(b);
-        else b.y = b.v = 0;
-      }
-      return live;
+      } else for (const b of blocks) if (b.shown) clear(b);
+      if (live && !raf) raf = requestAnimationFrame(frame);   // Lenis' own scroll callback may already have asked for one
+      else if (!live) lastT = 0;
     };
-    const start = loop(step);
-    addEventListener("scroll", start, { passive: true });
+    function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+    addEventListener("scroll", kick, { passive: true });
+    addEventListener("wheel", kick, { passive: true });
     const hand = (x, y) => { anchorX = x; anchor = y; };
     addEventListener("touchstart", (e) => hand(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
     addEventListener("touchmove", (e) => hand(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
     addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") hand(e.clientX, e.clientY); }, { passive: true });
     let rt = 0;
     addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(place, 200); });
-    // gravity mode measures every element right after this event: hand it a page without offsets
+    // gravity mode measures every element right after this event: hand it a page without offsets, and stop the wheel
     document.addEventListener("gravitychange", () => {
       frozen = held();
-      if (frozen) for (const b of blocks) clear(b);
-      else place();
+      if (frozen) { for (const b of blocks) clear(b); clearSkew(); lenis && lenis.stop(); }
+      else { lenis && lenis.start(); place(); }
     });
-    if (document.fonts) document.fonts.ready.then(place); else place();
+    const setMode = (m) => {
+      mode = m;
+      try { localStorage.setItem("scroll-mode", m); } catch (e) { /* private mode */ }
+      for (const b of blocks) clear(b);
+      clearSkew(); setLenis(); place();
+      lab && lab.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
+    };
+    // the comparison panel, only with #lab in the address
+    let lab = null;
+    if (/lab|scroll=/.test(location.hash)) {
+      lab = document.createElement("div");
+      lab.className = "lab";
+      lab.innerHTML = '<span>scroll</span>' + MODES.map((m) => `<button type="button" data-m="${m}">${m}</button>`).join("");
+      lab.addEventListener("click", (e) => { const m = e.target.dataset?.m; if (m) setMode(m); });
+      document.body.append(lab);
+    }
+    const boot = () => { setMode(mode); };
+    if (document.fonts) document.fonts.ready.then(boot); else boot();
     addEventListener("load", place, { once: true });
   }
 
