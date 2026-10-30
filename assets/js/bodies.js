@@ -1,9 +1,9 @@
 // Home page rigid bodies (Matter.js, self-hosted, loaded on demand):
 //   stack    the stack's chips live at the bottom of the window: drag, throw, resize the window, scroll
 //   gravity  the corner button turns everything on screen into bodies that fall; press again (or Esc) to put them back
-// On phones, gravity follows the device's tilt in both. Nothing runs under reduced motion.
+// Nothing runs under reduced motion or on phones (the head script leaves .physics off).
 (() => {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!document.documentElement.classList.contains("physics")) return;   // set in the head: off under reduced motion and on phones
   const root = document.documentElement;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const pit = document.querySelector(".pit"), stage = pit?.querySelector(".stage"), gbtn = document.querySelector(".grav");

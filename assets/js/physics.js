@@ -7,11 +7,10 @@
 //   string   the timeline is a string you can pluck; its dots ride on it
 //   bars     chart bars are coupled springs: brush across them and a ripple runs through
 //   scroll   every block of text and every box hangs on a spring while the page scrolls
-// Each loop stops when things come to rest. None of it runs under reduced motion.
+// Each loop stops when things come to rest. None of it runs under reduced motion or on phones.
 (() => {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const root = document.documentElement;
-  root.classList.add("physics");
+  if (!root.classList.contains("physics")) return;   // set in the head: off under reduced motion and on phones
   const css = (k) => getComputedStyle(root).getPropertyValue(k).trim();
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const held = () => root.classList.contains("gravity");     // gravity mode owns element transforms while it is on
@@ -174,23 +173,6 @@
     addEventListener("resize", () => { size(); start(); });
     onTheme(() => { paint(); lastBox = [0, 0, W, H]; start(); });
     size(); paint();
-  }
-
-  // ---------- planet ----------
-  // Its animations run on the compositor, but on every frame the main thread draws for something else, it also
-  // restyles and re-layers the planet's ~40 parts (a phone emulated at 1/8 speed: 54 fps flings instead of 59).
-  // A scroll is when everything else moves and nobody watches the planet: it holds still, and picks up where it was.
-  // Out of view it holds too (content-visibility alone still left it costing frames further down the page).
-  const planet = document.querySelector(".planet");
-  if (planet) {
-    let rest = 0, seen = true;
-    const hold = () => planet.classList.toggle("hold", !!rest || !seen);
-    addEventListener("scroll", () => {
-      clearTimeout(rest);
-      rest = setTimeout(() => { rest = 0; hold(); }, 250);
-      hold();
-    }, { passive: true });
-    new IntersectionObserver(([e]) => { seen = e.isIntersecting; hold(); }).observe(planet);
   }
 
   // ---------- letters ----------
@@ -482,34 +464,7 @@
     const MAXY = 48, TAU_EDGE = 0.035, TAU_V = 0.12;   // grid: lag in s at the content's edge (0 in its middle); speed smoothing in s
     const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // bubble spring, per 60 fps frame
     let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false, shown = 0, ds = 0;
-    const clear = (b) => { b.el.style.translate = b.el.style.transition = ""; b.y = b.v = 0; b.shown = false; };
-    // Touch: a block's offset is set a few times a second and the compositor animates in between. On a phone the page
-    // scrolls on the compositor (at 120 Hz on newer iPhones, while Safari runs rAF at 60), so offsets written from
-    // script every frame land a frame late and at half the rate, and the cards shake. Same spring and reach as bubble:
-    // trailing by 10x the scroll per frame (the spring's balance point), easing in over its ~0.17 s time constant,
-    // and home along the spring's own curve when the page stops.
-    const W0 = 2 * Math.PI * 1.6, WD = W0 * Math.sqrt(1 - ZETA * ZETA);
-    const home = (t) => 1 - Math.exp(-ZETA * W0 * t) * (Math.cos(WD * t) + ((ZETA * W0) / WD) * Math.sin(WD * t));
-    const SPRING = CSS.supports?.("transition-timing-function", "linear(0, 1)")
-      ? `linear(${Array.from({ length: 25 }, (_, i) => home((i / 24) * 0.7).toFixed(3)).join(", ")})` : "cubic-bezier(.2, .8, .2, 1)";
-    let glided = 0, settle = 0;
-    const glide = (t, pos, H, W, lo, hi) => {
-      const going = Math.abs(vs) > 30;
-      if (going && t - glided < 90) return;
-      glided = t;
-      clearTimeout(settle);
-      const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);
-      for (const b of blocks) {
-        if (b.top + b.h < lo || b.top > hi) { if (b.shown) clear(b); continue; }
-        const reach = Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - pos - ay)) / span);
-        const y = going ? clamp((10.1 * vs * reach) / 60, -MAXY, MAXY) : 0;
-        if (Math.abs(y - b.y) < 0.5 && (going || !b.shown)) continue;
-        b.el.style.transition = going ? "translate .17s ease-out" : `translate .7s ${SPRING}`;
-        b.el.style.translate = `0 ${y.toFixed(1)}px`;
-        b.y = y; b.shown = true;
-      }
-      if (!going) settle = setTimeout(() => { for (const b of blocks) if (b.shown) clear(b); }, 750);   // home: hand back a clean page
-    };
+    const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
     const clearSkew = () => { if (skewShown) sections.forEach((s) => (s.style.transform = "")); skewShown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
       for (const b of blocks) clear(b);
@@ -566,10 +521,7 @@
         }
         live ||= skewShown;
       } else if (skewShown) clearSkew();
-      if (mode === "bubble" && coarse) {
-        if (d || vs || blocks.some((b) => b.y)) glide(t, pos, H, W, lo, hi);
-        live = d !== 0 || vs !== 0;
-      } else if ((mode === "grid" || mode === "bubble") && (d || vs || ds || shown)) {   // idle ticks skip the blocks entirely
+      if ((mode === "grid" || mode === "bubble") && (d || vs || ds || shown)) {   // idle ticks skip the blocks entirely
         shown = 0;
         const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);
         const sub = Math.max(1, Math.round(dt * 120)), h = (dt * 60) / sub;
@@ -632,7 +584,6 @@
       });
       document.body.append(lab);
     }
-    if (/diag/.test(location.hash)) window.lyraScroll = (m) => setMode(m);   // diag.js switches the float off and on
     const boot = () => { setMode(mode); };
     if (document.fonts) document.fonts.ready.then(boot); else boot();
     addEventListener("load", place, { once: true });
