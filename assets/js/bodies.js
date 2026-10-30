@@ -283,7 +283,7 @@
 
   // ---------- gravity mode ----------
   const PARTS = ".nav .brand, .nav nav > *, .kicker, .title span, .lede, .badges li, .cta .btn, .hero-art, .band-head p, .kpi, .band .chart, .band .table, .label, .hl,"
-    + " .timeline li, .card, .paper, .aside, .oss li, .honor, .pit, .postlist li, .more, .foot p";
+    + " .timeline li, .card, .paper, .aside, .oss li, .honor, .postlist li, .more, .foot p";
   let G = null, homing = 0;
   const blockScroll = (e) => e.preventDefault();
   const blockKeys = (e) => {
@@ -313,7 +313,11 @@
     try { await load(); } finally { pending = false; }
     const { Engine, Bodies, Composite, Body } = M;
     homing++;                                    // cancel a restore that is still running
-    root.classList.add("gravity");               // physics.js lets go of its transforms; reveals and entrances are forced to their end state
+    root.classList.remove("restoring");
+    // entrances end for good (restoring must not replay them), and every section counts as revealed
+    root.classList.add("played");
+    document.querySelectorAll(".reveal").forEach((r) => r.classList.add("in", "done"));
+    root.classList.add("gravity");               // physics.js lets go of its transforms
     document.dispatchEvent(new Event("gravitychange"));
     const all = [...document.querySelectorAll(PARTS)];
     all.forEach((el) => (el.style.transform = ""));
@@ -416,6 +420,7 @@
     engines.delete(engine);
     G = null;
     listen(false);
+    root.classList.add("restoring");             // the band's panel and the button change back now, while things fly home
     items.forEach((it) => (it.el.style.cursor = ""));
     gbtn.setAttribute("aria-pressed", "false");
     gbtn.querySelector("span").textContent = "gravity";
@@ -436,7 +441,10 @@
         s.el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px) rotate(${s.a.toFixed(4)}rad)`;
       }
       if (moving) return requestAnimationFrame(home);
-      st.forEach((s) => { s.el.style.transform = ""; s.el.style.willChange = ""; });
+      st.forEach((s) => (s.el.style.transform = ""));
+      root.classList.remove("restoring");
+      // drop the layers a moment later, once the page has stood still (doing it on the last frame re-rendered the text)
+      setTimeout(() => { if (!G) st.forEach((s) => (s.el.style.willChange = "")); }, 1500);
       root.classList.remove("gravity");
       document.dispatchEvent(new Event("gravitychange"));
     };
@@ -446,11 +454,18 @@
   if (gbtn) gbtn.addEventListener("click", (e) => { e.stopPropagation(); G ? gravityOff() : gravityOn().catch(() => {}); });
 
   // ---------- tilt ----------
-  // Android sends orientation events right away; iOS sends nothing until the page asks, so it keeps a button
-  const tiltBtn = pit?.querySelector(".tilt");
+  // Android sends orientation events right away; iOS sends nothing until the page asks, which needs a tap: the
+  // first tap on a chip or on the gravity button asks
+  let asked = false;
+  const askTilt = () => {
+    if (asked || typeof window.DeviceOrientationEvent?.requestPermission !== "function") return;
+    asked = true;
+    DeviceOrientationEvent.requestPermission().catch(() => {});
+  };
+  stage?.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") askTilt(); });
+  gbtn?.addEventListener("click", askTilt);
   const tilt = () => addEventListener("deviceorientation", (e) => {
     if (e.beta == null) return;
-    if (tiltBtn) tiltBtn.hidden = true;
     const b = (e.beta * Math.PI) / 180, g = (e.gamma * Math.PI) / 180;
     const th = (((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * Math.PI) / 180;
     const x = Math.sin(g) * Math.cos(b), y = Math.sin(b);                    // gravity in screen coordinates, portrait
@@ -460,12 +475,5 @@
     for (const en of engines) { en.gravity.x = gx; en.gravity.y = gy; M.Composite.allBodies(en.world).forEach((bd) => M.Sleeping.set(bd, false)); }
     pitRun(); gRun();
   });
-  if (matchMedia("(pointer: coarse)").matches && "DeviceOrientationEvent" in window) {
-    tilt();
-    if (tiltBtn && typeof DeviceOrientationEvent.requestPermission === "function") {
-      tiltBtn.hidden = false;
-      tiltBtn.addEventListener("click", () => DeviceOrientationEvent.requestPermission()
-        .then((s) => { if (s === "granted") tiltBtn.hidden = true; }).catch(() => {}));
-    }
-  }
+  if (matchMedia("(pointer: coarse)").matches && "DeviceOrientationEvent" in window) tilt();
 })();

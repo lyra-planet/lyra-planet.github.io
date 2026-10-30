@@ -41,6 +41,7 @@
   const io = "IntersectionObserver" in window && new IntersectionObserver((es) => es.forEach((e) => {
     if (!e.isIntersecting) return;
     e.target.classList.add("in");
+    setTimeout(() => e.target.classList.add("done"), 2200);   // its stagger has played: never again
     io.unobserve(e.target);
     (e.target._cbs || []).forEach((f) => f());
   }), { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
@@ -50,6 +51,8 @@
     (sec._cbs ||= []).push(f);
   };
   document.querySelectorAll(".reveal").forEach((el) => io ? io.observe(el) : el.classList.add("in"));
+  // the hero's entrance (letters, rises, growing bars) is over by ~3 s: mark it, so nothing can replay it
+  addEventListener("load", () => setTimeout(() => root.classList.add("played"), 3200), { once: true });
 
   document.querySelectorAll("[data-count]").forEach((el) => {
     const end = +el.dataset.count, dec = +el.dataset.dec || 0, suf = el.dataset.suffix || "";

@@ -177,24 +177,6 @@
     size(); paint();
   }
 
-  // ---------- planet ----------
-  // The pixel planet is an animated SVG, so it repaints every frame it is on screen. In gravity mode its card
-  // tumbles, and repainting an animation on a moving layer costs every frame: it shows a still frame instead.
-  // Only the image the current theme shows is swapped (each swap restyles the whole SVG). Off screen nothing is
-  // done: the browser doesn't run an image's animation while it isn't painted, and swapping there cost a hitch.
-  const planets = [...document.querySelectorAll(".hero-art img[data-still]")];
-  if (planets.length) {
-    planets.forEach((im) => (im.dataset.live = im.getAttribute("src")));
-    const set = () => planets.forEach((im) => {
-      const want = held() && im.offsetParent !== null ? im.dataset.still : im.dataset.live;
-      if (im.getAttribute("src") !== want) im.setAttribute("src", want);
-    });
-    // fetch and decode the still frames while the browser is idle, so the swap never waits on the network
-    const warm = () => planets.forEach((im) => { const i = new Image(); i.src = im.dataset.still; i.decode?.().catch(() => {}); });
-    "requestIdleCallback" in window ? requestIdleCallback(warm, { timeout: 4000 }) : setTimeout(warm, 2500);
-    document.addEventListener("gravitychange", set);
-  }
-
   // ---------- letters ----------
   const letters = [...document.querySelectorAll(".title span")].map((el) => ({ el, x: 0, y: 0, vx: 0, vy: 0, drag: null }));
   if (letters.length) {
@@ -469,7 +451,7 @@
   //   skew    the content leans with scroll speed and eases back
   //   none    blocks stay put;   and a separate switch for the smooth wheel (off by default)
   // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
-  const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more";
+  const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .postlist li, .more";
   const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
     .map((el) => ({ el, top: 0, h: 0, cx: 0, dist: 0, y: 0, v: 0, shown: false }));
   const sections = [...document.querySelectorAll("main > section")];

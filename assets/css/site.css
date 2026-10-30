@@ -224,9 +224,9 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .home .hero { padding-block: 12px 0; }
 .title { font-size: clamp(76px, 13vw, 148px); line-height: .9; margin: 0; letter-spacing: -.035em; }
 .title span { display: inline-block; }
-.js .title span { animation: letter .9s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 70ms + 100ms); }
+.js:not(.played) .title span { animation: letter .9s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 70ms + 100ms); }
 @keyframes letter { from { opacity: 0; transform: translateY(.35em) rotate(6deg); filter: blur(8px); } }
-.js .rise { animation: rise .8s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 90ms + 200ms); }
+.js:not(.played) .rise { animation: rise .8s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 90ms + 200ms); }
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
 .kicker [lang="zh"] { font-family: system-ui, "PingFang SC", "Noto Sans CJK SC", sans-serif; color: var(--muted); }
 .rotator { color: var(--clay-text); font-style: italic; }
@@ -310,15 +310,12 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
   box-shadow: 0 2px 0 rgba(20,20,19,.1); }   /* flat: a blurred shadow is re-blended every frame a chip or something over it moves */
 .heap .stage li[hidden] { display: none; }
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
-.armed .pit-hint { margin: 0; }
+.physics .stack { display: none; }
 @media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */
 @media print { .heap, .grav, .field, .grid { display: none; } }
 .boom { position: absolute; width: 0; height: 0; border: 2px solid var(--clay); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); animation: boom .55s ease-out forwards; }
 @keyframes boom { to { width: 300px; height: 300px; opacity: 0; } }
-.pit-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 0; font: 12px var(--mono); color: var(--muted); }
-.pit-hint span { display: none; } .physics .pit-hint .fine { display: inline; }
-.tilt { font: 500 12px var(--mono); padding: 6px 12px; border-radius: 99px; border: 1px solid var(--clay); background: var(--surface); color: var(--clay-text); cursor: pointer; }
-@media (pointer: coarse) { .physics .pit-hint .fine { display: none; } .physics .pit-hint .coarse { display: inline; } .stage li { font-size: 12.5px; padding: 6px 12px; } }
+@media (pointer: coarse) { .stage li { font-size: 12.5px; padding: 6px 12px; } }
 
 /* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
 .field { display: none; }
@@ -346,7 +343,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .string path { fill: none; stroke: url(#string-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* scroll springs (physics.js): each block is its own layer, so moving it costs no repaint */
-.physics :is(.kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more) { will-change: transform; }
+.physics :is(.kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .postlist li, .more) { will-change: transform; }
 
 /* Lenis smooth wheel (its own stylesheet, inlined) */
 html.lenis, html.lenis body { height: auto; }
@@ -374,22 +371,24 @@ html.lenis, html.lenis body { height: auto; }
 .grav i { width: 9px; height: 9px; border-radius: 2px; background: var(--clay); transform: translateY(5px); animation: drop 1.8s cubic-bezier(.55,0,1,.45) 3; }
 .grav:hover i { animation-iteration-count: infinite; }
 @keyframes drop { 0% { transform: translateY(-7px); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateY(5px); } 78% { transform: translateY(2px); } 86%, 100% { transform: translateY(5px); opacity: 1; } }
-.gravity .grav { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.gravity .grav i { animation: none; transform: rotate(45deg); background: var(--clay); }
-.gravity .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
-.gravity .reveal .stagger { opacity: 1 !important; animation: none !important; }
-.gravity .rise, .gravity .title span { animation: none !important; }
+.gravity:not(.restoring) .grav { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.played .grav:not(:hover) i { animation: none; }   /* played its three drops already; hover still plays it */
+.gravity:not(.restoring) .grav i { animation: none; transform: rotate(45deg); background: var(--clay); }
+/* entrance animations play once: .played / .done mark them finished (gravity sets both), so toggling classes
+   later never restarts them (restoring from gravity used to replay the whole entrance) */
 .gravity body { -webkit-user-select: none; user-select: none; }
 /* the usage band breaks apart: its panel stays as an outline, its pieces fall as dark tiles */
-.gravity .band { background: transparent; border-style: dashed; border-color: rgba(135,134,127,.45); box-shadow: none; }
-.gravity .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 3px 0 8px rgba(20,20,19,.25); }
+/* the usage band's panel fades out and in instead of switching in one frame */
+.band, .band :is(.band-head p, .kpi, .chart, .table) { transition: background-color .35s ease, border-color .35s ease, box-shadow .35s ease; }
+.gravity:not(.restoring) .band { background: transparent; border-style: dashed; border-color: rgba(135,134,127,.45); box-shadow: none; }
+.gravity:not(.restoring) .band :is(.band-head p, .kpi, .chart, .table) { background: #141413; border-radius: 10px; box-shadow: 0 0 0 8px #141413, 0 3px 0 8px rgba(20,20,19,.25); }
 .boom { z-index: 70; }
 
 /* scroll reveal */
 .js .reveal { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
 .js .reveal:not(.in) { opacity: 0; transform: translateY(26px); }
 .js .reveal:not(.in) .stagger { opacity: 0; }
-.js .reveal.in .stagger { animation: rise .7s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i) * 90ms + 150ms); }
+.js .reveal.in:not(.done) .stagger { animation: rise .7s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i) * 90ms + 150ms); }
 
 @media (max-width: 860px) {
   .highlights { grid-template-columns: repeat(2, 1fr); }
@@ -403,7 +402,7 @@ html.lenis, html.lenis body { height: auto; }
 }
 @media (max-width: 480px) { .hl b { font-size: 36px; } .hl { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  body.home::before, .js .title span, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none; }
+  body.home::before, .js .title span, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none !important; }
   .js .reveal, .timeline::before, .hero-art img { transition: none; }
   .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1; transform: none; }
 }
