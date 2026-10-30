@@ -14,8 +14,10 @@
   // link was 400 times lighter than the planet card, and a solver that iterates can't hold such a pile still).
   const SOLVER = { enableSleeping: true, positionIterations: 10, velocityIterations: 8 };
   const GRAVITY = 0.0018;                      // 1.8x Matter's default: a fall reads as a fall, not a float
-  const BODY = { restitution: 0.15, friction: 0.5, frictionStatic: 0.8, frictionAir: 0.01, sleepThreshold: 30 };
-  const tune = (engine) => { engine.gravity.scale = GRAVITY; M.Sleeping._motionSleepThreshold = 0.12; return engine; };
+  // Sleep uses Matter's own speed threshold and 45 calm steps: with a looser threshold, chips froze while still
+  // sliding and jerked on when the next one landed
+  const BODY = { restitution: 0.15, friction: 0.5, frictionStatic: 0.8, frictionAir: 0.01, sleepThreshold: 45 };
+  const tune = (engine) => { engine.gravity.scale = GRAVITY; return engine; };
   const weigh = (b) => M.Body.setMass(b, clamp(b.area / 2500, 0.6, 4.8));
   let M = null;
   const load = () => M ? Promise.resolve(M) : new Promise((ok, no) => {
@@ -39,17 +41,23 @@
   const scrollSpeed = () => (performance.now() - lastScroll > 80 ? 0 : SV);
   // Matter steps at a fixed 60 Hz. Each frame is drawn between the last two steps, so motion stays smooth on
   // 120 Hz screens instead of moving every other frame.
-  const advance = (engine, bodies, acc) => {
+  const advance = (engine, bodies, acc, held) => {
     while (acc >= STEP) {
+      if (held) M.Sleeping.set(held, false);   // a body in the hand never sleeps (it froze mid-drag when the hand slowed)
       for (const b of bodies) { b.px = b.position.x; b.py = b.position.y; b.pa = b.angle; }
       M.Engine.update(engine, STEP);
       acc -= STEP;
     }
     return acc;
   };
-  const pose = (b, k) => (b.px === undefined || b.isSleeping
-    ? [b.position.x, b.position.y, b.angle]
-    : [b.px + (b.position.x - b.px) * k, b.py + (b.position.y - b.py) * k, b.pa + (b.angle - b.pa) * k]);
+  const POSE = [0, 0, 0];                     // reused every call: a new array per body per frame was garbage-collector work
+  const pose = (b, k) => {
+    const still = b.px === undefined || b.isSleeping;
+    POSE[0] = still ? b.position.x : b.px + (b.position.x - b.px) * k;
+    POSE[1] = still ? b.position.y : b.py + (b.position.y - b.py) * k;
+    POSE[2] = still ? b.angle : b.pa + (b.angle - b.pa) * k;
+    return POSE;
+  };
   const place = (b, p) => { M.Body.setPosition(b, p); b.px = undefined; };   // a teleport is not drawn as a streak
   const engines = new Set();                  // every live engine follows the same tilt
   const tiltG = { x: 0, y: 1 };
@@ -203,7 +211,7 @@
       if (document.hidden) { running = false; return; }
       acc += Math.min(100, t - last); last = t;
       const moved = follow();
-      acc = advance(engine, bodies, acc);
+      acc = advance(engine, bodies, acc, grab && grab.bodyB);
       inertia(); lid(); rescue(); sync();
       if (!grab && !moved && ceiling && bodies.every((b) => b.isSleeping)) { running = false; return; }   // all at rest: stop until poked
       requestAnimationFrame(tick);
@@ -305,7 +313,6 @@
     try { await load(); } finally { pending = false; }
     const { Engine, Bodies, Composite, Body } = M;
     homing++;                                    // cancel a restore that is still running
-    root.style.setProperty("--dots-y", `${-(SY % 22)}px`);   // the painted dots line up with where the canvas dots were
     root.classList.add("gravity");               // physics.js lets go of its transforms; reveals and entrances are forced to their end state
     document.dispatchEvent(new Event("gravitychange"));
     const all = [...document.querySelectorAll(PARTS)];
@@ -346,7 +353,7 @@
   const gTick = (t) => {
     if (!G || !G.running) return;
     G.acc += Math.min(100, t - G.last); G.last = t;
-    G.acc = advance(G.engine, G.bodies, G.acc);
+    G.acc = advance(G.engine, G.bodies, G.acc, G.grab && G.grab.bodyB);
     const k = G.acc / STEP;
     for (const it of G.items) {
       const b = it.body;

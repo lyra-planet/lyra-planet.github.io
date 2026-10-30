@@ -312,7 +312,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
 .armed .pit-hint { margin: 0; }
 @media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */
-@media print { .heap, .grav, .field { display: none; } }
+@media print { .heap, .grav, .field, .grid { display: none; } }
 .boom { position: absolute; width: 0; height: 0; border: 2px solid var(--clay); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); animation: boom .55s ease-out forwards; }
 @keyframes boom { to { width: 300px; height: 300px; opacity: 0; } }
 .pit-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 0; font: 12px var(--mono); color: var(--muted); }
@@ -323,6 +323,15 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 /* hero physics: a canvas replaces the CSS dot grid; title letters can be grabbed */
 .field { display: none; }
 .physics .field { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; will-change: transform; image-rendering: pixelated; }
+/* the resting dot grid: a pattern as tall as the page, faint everywhere and full strength in an ellipse behind the hero */
+.physics body { position: relative; }   /* .grid fills the body: as tall as the content, and never taller */
+/* no layer of its own: it is page background, scrolled for free; the glow layer covers only the top of the page */
+.grid { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
+.grid::before, .grid::after { content: ""; position: absolute; left: 0; right: 0; top: 0; background: var(--dots) 0 0 / 22px 22px; }
+.grid::before { bottom: 0; opacity: .3; }
+.grid::after { height: calc(var(--gh, 800px) * .78); opacity: .7; -webkit-mask: radial-gradient(60% calc(var(--gh, 800px) * .525) at 75% calc(var(--gh, 800px) * .25), #000, transparent);
+  mask: radial-gradient(60% calc(var(--gh, 800px) * .525) at 75% calc(var(--gh, 800px) * .25), #000, transparent); }
+
 .physics body.home::before { display: none; }
 .physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .physics .title span.held { cursor: grabbing; }
@@ -341,8 +350,6 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 
 /* gravity mode (bodies.js) */
 /* while things fall, the dot field is a plain background painted with the page instead of its own full-screen canvas layer */
-.physics.gravity .field { visibility: hidden; }
-.physics.gravity body { background-image: var(--dots); background-attachment: fixed; background-position: 0 var(--dots-y, 0); }
 :root { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%23d1cec4'/%3E%3C/svg%3E"); }
 :root[data-theme="dark"] { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%2345443f'/%3E%3C/svg%3E"); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='10' y='10' width='2' height='2' fill='%2345443f'/%3E%3C/svg%3E"); } }
