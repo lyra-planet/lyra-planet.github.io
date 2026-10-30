@@ -453,35 +453,37 @@
 
   // ---------- scroll ----------
   // What blocks do while the page scrolls. Lessons that shaped this (1030):
-  //  - A script that moves elements after the browser has scrolled on its own thread is one frame late: the
-  //    element follows the page, then snaps back - a constant jitter (Mozilla, "Scroll-linked effects").
-  //    So on desktop the wheel goes through Lenis (smooth scrolling on the main thread), and the effects are
-  //    computed in the same frame as the scroll. Touch keeps the phone's own scrolling.
+  //  - The page scrolls natively. Lenis (smooth wheel on the main thread, effects in the same frame) is optional:
+  //    it eases every wheel toward its target over ~0.5 s, which reads as drag ("scrolling has resistance", 1030).
+  //    The jitter it removes (Mozilla, "Scroll-linked effects") hits effects that pin things against the scroll;
+  //    a block trailing its own place starts trailing one frame late, which doesn't show.
   //  - Springs that differ per block wobble out of step and read as jelly; the look people build on purpose
   //    (GSAP ScrollSmoother's "lag", Codrops' Elastic Grid Scroll) is a time-based catch-up with no overshoot,
   //    spread symmetrically: the middle of a grid arrives first, its edges a little later.
   //  - Lenis advances by the time since its last raf() call, unclamped: a loop that paused while idle made the first
   //    notch after a pause land in one frame (120 px), then stall. While Lenis is on, the loop keeps ticking (an
   //    idle tick does no work), so every scroll starts from a fresh clock.
-  // Several takes stay selectable with #lab in the address (or #scroll=grid|bubble|skew|off|native):
+  // Several takes stay selectable with #lab in the address (or #scroll=bubble|grid|skew|none, #smooth):
   //   bubble  (default, chosen 1030) iOS Messages bubbles: one spring, held back by distance from the pointer
   //   grid    catch-up lag that grows from the centre of the content to its edges
   //   skew    the content leans with scroll speed and eases back
-  //   off     smooth wheel only;  native  the browser's own scrolling, nothing added
+  //   none    blocks stay put;   and a separate switch for the smooth wheel (off by default)
   // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
   const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .pit-hint, .postlist li, .more";
   const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
     .map((el) => ({ el, top: 0, h: 0, cx: 0, dist: 0, y: 0, v: 0, shown: false }));
   const sections = [...document.querySelectorAll("main > section")];
-  const MODES = ["grid", "bubble", "skew", "off", "native"];
+  const MODES = ["bubble", "grid", "skew", "none"];
+  const stored = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const fromHash = /scroll=(\w+)/.exec(location.hash)?.[1];
-  let mode = MODES.includes(fromHash) ? fromHash : (() => { try { return localStorage.getItem("scroll-mode"); } catch (e) { return null; } })();
+  let mode = MODES.includes(fromHash) ? fromHash : stored("scroll-mode");
   if (!MODES.includes(mode)) mode = "bubble";
+  let smooth = /smooth/.test(location.hash) || stored("scroll-smooth") === "1";
   const coarse = matchMedia("(pointer: coarse)").matches;
   if (blocks.length) {
     const MAXY = 48, TAU_EDGE = 0.035, TAU_V = 0.12;   // grid: lag in s at the content's edge (0 in its middle); speed smoothing in s
     const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // bubble spring, per 60 fps frame
-    let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false, shown = 0;
+    let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false, shown = 0, ds = 0;
     const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
     const clearSkew = () => { if (skewShown) sections.forEach((s) => (s.style.transform = "")); skewShown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
@@ -495,7 +497,7 @@
       last = scrollPos();
     };
     const scrollPos = () => (lenis ? lenis.animatedScroll : SY);
-    const useLenis = () => !coarse && mode !== "native" && window.Lenis;
+    const useLenis = () => !coarse && smooth && window.Lenis;
     const setLenis = () => {
       if (useLenis() && !lenis) {
         lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, autoRaf: false, anchors: true });
@@ -512,10 +514,14 @@
       let d = pos - last;
       last = pos;
       if (Math.abs(d) > 400 || frozen) d = 0;   // a jump (an anchor link, a restored position) is not a scroll
-      let live = d !== 0 || (lenis && lenis.isScrolling) || vs !== 0;
+      let live = d !== 0 || (lenis && lenis.isScrolling) || vs !== 0 || ds !== 0;
       // smoothed scroll speed, px/s: a wheel arrives in notches, and following each notch made blocks pulse
       vs += (d / dt - vs) * (1 - Math.exp(-dt / TAU_V));
       if (Math.abs(vs) < 2 && !d) vs = 0;
+      // the scroll per frame, spread over ~60 ms: where a scroll arrives in jumps (a mouse without smooth scrolling,
+      // Page Down) the blocks are pushed by the same total, just not all in one frame
+      ds += (d - ds) * (1 - Math.exp(-dt / 0.06));
+      if (Math.abs(ds) < 0.01 && !d) ds = 0;
       if (mode === "skew") {
         const s = clamp(-vs / 500, -3, 3);
         if (Math.abs(s) > 0.01 || skewShown) {
@@ -524,7 +530,7 @@
         }
         live ||= skewShown;
       } else if (skewShown) clearSkew();
-      if ((mode === "grid" || mode === "bubble") && (d || vs || shown)) {   // idle ticks skip the blocks entirely
+      if ((mode === "grid" || mode === "bubble") && (d || vs || ds || shown)) {   // idle ticks skip the blocks entirely
         shown = 0;
         const ay = anchor ?? H / 2, ax = anchorX ?? W / 2, span = 1.8 * (W + H);
         const sub = Math.max(1, Math.round(dt * 120)), h = (dt * 60) / sub;
@@ -535,7 +541,7 @@
             // easing home as the speed fades; tanh rounds off the cap instead of flattening against it
             b.y = MAXY * Math.tanh((TAU_EDGE * b.dist * vs) / MAXY);
           } else {
-            if (d) b.y = clamp(b.y + d * Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - pos - ay)) / span), -MAXY, MAXY);
+            if (ds) b.y = clamp(b.y + ds * Math.min(0.9, (Math.abs(b.cx - ax) + Math.abs(b.top + b.h / 2 - pos - ay)) / span), -MAXY, MAXY);
             for (let i = 0; i < sub; i++) { b.v += (-OMEGA * OMEGA * b.y - 2 * ZETA * OMEGA * b.v) * h; b.y += b.v * h; }
           }
           const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
@@ -563,20 +569,28 @@
       if (frozen) { for (const b of blocks) clear(b); clearSkew(); lenis && lenis.stop(); }
       else { lenis && lenis.start(); place(); kick(); }
     });
-    const setMode = (m) => {
-      mode = m;
-      try { localStorage.setItem("scroll-mode", m); } catch (e) { /* private mode */ }
+    const setMode = (m, sm = smooth) => {
+      mode = m; smooth = sm;
+      try { localStorage.setItem("scroll-mode", m); localStorage.setItem("scroll-smooth", sm ? "1" : "0"); } catch (e) { /* private mode */ }
       for (const b of blocks) clear(b);
       clearSkew(); setLenis(); place(); kick();
-      lab && lab.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
+      if (lab) {
+        lab.querySelectorAll("[data-m]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
+        lab.querySelector("[data-s]").setAttribute("aria-pressed", String(sm));
+      }
     };
     // the comparison panel, only with #lab in the address
     let lab = null;
-    if (/lab|scroll=/.test(location.hash)) {
+    if (/lab|scroll=|smooth/.test(location.hash)) {
       lab = document.createElement("div");
       lab.className = "lab";
-      lab.innerHTML = '<span>scroll</span>' + MODES.map((m) => `<button type="button" data-m="${m}">${m}</button>`).join("");
-      lab.addEventListener("click", (e) => { const m = e.target.dataset?.m; if (m) setMode(m); });
+      lab.innerHTML = '<span>scroll</span>' + MODES.map((m) => `<button type="button" data-m="${m}">${m}</button>`).join("")
+        + '<span>|</span><button type="button" data-s>smooth wheel</button>';
+      lab.addEventListener("click", (e) => {
+        const t = e.target;
+        if (t.dataset?.m) setMode(t.dataset.m);
+        else if (t.hasAttribute?.("data-s")) setMode(mode, !smooth);
+      });
       document.body.append(lab);
     }
     const boot = () => { setMode(mode); };
