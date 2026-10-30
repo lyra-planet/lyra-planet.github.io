@@ -115,6 +115,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
 /* usage widget */
 .usage { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px; }
 .kpis { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 16px; align-items: end; }
+.kpis:empty { min-height: 89px; }   /* the row's height before the numbers arrive, so nothing below moves */
 .kpi b { display: block; font: 500 32px/1 var(--serif); letter-spacing: -.02em; }
 .kpi.hero-kpi b { font-size: 60px; }
 .kpi span { font: 12px var(--mono); color: var(--muted); }
@@ -183,7 +184,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
   .hero { grid-template-columns: 1fr; gap: 28px; }
   .focus { grid-template-columns: repeat(2, 1fr); }
   .cards { grid-template-columns: 1fr; }
-  .kpis { grid-template-columns: repeat(2, 1fr); } .kpi.hero-kpi { grid-column: 1 / -1; }
+  .kpis { grid-template-columns: repeat(2, 1fr); } .kpi.hero-kpi { grid-column: 1 / -1; } .kpis:empty { min-height: 240px; }
   .postlist li, .entry, .skills div { grid-template-columns: 1fr; gap: 4px; }
 }
 @media (max-width: 480px) { body { font-size: 17px; } .focus { grid-template-columns: 1fr; } .page-head h1, .cv-head h1 { font-size: 48px; } }
@@ -309,6 +310,8 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .heap .stage li { position: absolute; left: 0; top: 100%; pointer-events: auto; will-change: transform; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
   box-shadow: 0 2px 0 rgba(20,20,19,.1); }   /* flat: a blurred shadow is re-blended every frame a chip or something over it moves */
 .heap .stage li[hidden] { display: none; }
+.heap .stage li { transition: opacity .4s ease; }
+.heap.settling .stage li { opacity: 0; }   /* the pile settles out of sight, then fades in where it rests */
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
 .physics .stack { display: none; }
 @media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */
@@ -323,7 +326,8 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 /* the resting dot grid: a pattern as tall as the page, faint everywhere and full strength in an ellipse behind the hero */
 .physics body { position: relative; }   /* .grid fills the body: as tall as the content, and never taller */
 /* no layer of its own: it is page background, scrolled for free; the glow layer covers only the top of the page */
-.grid { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
+.grid { display: none; --gh: min(100vh, 900px); }
+.physics .grid { display: block; position: absolute; inset: 0; z-index: -2; pointer-events: none; }
 .grid::before, .grid::after { content: ""; position: absolute; left: 0; right: 0; top: 0; background: var(--dots) 0 0 / 22px 22px; }
 .grid::before { bottom: 0; opacity: .3; }
 .grid::after { height: calc(var(--gh, 800px) * .78); opacity: .7; -webkit-mask: radial-gradient(60% calc(var(--gh, 800px) * .525) at 75% calc(var(--gh, 800px) * .25), #000, transparent);
@@ -344,6 +348,10 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 
 /* scroll springs (physics.js): each block is its own layer, so moving it costs no repaint */
 .physics :is(.kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .postlist li, .more) { will-change: transform; }
+
+/* waiting for fonts (head script, at most 1 s): the first view stays hidden and its entrance waits */
+.fonts-wait :is(.nav, .hero, .band) { visibility: hidden; }
+.fonts-wait :is(.rise, .title span) { animation-play-state: paused; }
 
 /* Lenis smooth wheel (its own stylesheet, inlined) */
 html.lenis, html.lenis body { height: auto; }
@@ -372,7 +380,7 @@ html.lenis, html.lenis body { height: auto; }
 .grav:hover i { animation-iteration-count: infinite; }
 @keyframes drop { 0% { transform: translateY(-7px); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateY(5px); } 78% { transform: translateY(2px); } 86%, 100% { transform: translateY(5px); opacity: 1; } }
 .gravity:not(.restoring) .grav { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.played .grav:not(:hover) i { animation: none; }   /* played its three drops already; hover still plays it */
+.grav.idle:not(:hover) i { animation: none; }   /* played its three drops already; hover still plays it */
 .gravity:not(.restoring) .grav i { animation: none; transform: rotate(45deg); background: var(--clay); }
 /* entrance animations play once: .played / .done mark them finished (gravity sets both), so toggling classes
    later never restarts them (restoring from gravity used to replay the whole entrance) */

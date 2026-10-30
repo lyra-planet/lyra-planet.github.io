@@ -1,6 +1,7 @@
 {{ define "main" }}
 {{ $cv := site.Data.cv }}
 <div class="progress" aria-hidden="true"><i></i></div>
+<div class="grid" aria-hidden="true"></div>
 <canvas class="field" aria-hidden="true"></canvas>
 
 <section class="hero">
@@ -32,6 +33,8 @@
     <p class="band-note">live from my session logs · <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count</a></p>
   </div>
   <div class="usage" data-src="{{ site.Params.usageJSON }}">
+    {{- /* the numbers as of the build, so the band is filled from the first frame; the live file then updates it */}}
+    {{- with try (resources.GetRemote site.Params.usageJSON) }}{{ with .Value }}<script type="application/json" class="usage-seed">{{ .Content | safeJS }}</script>{{ end }}{{ end }}
     <div class="kpis"></div>
     <figure class="chart" aria-label="Claude Code tokens per day"><svg role="img"></svg><div class="tip" hidden></div></figure>
     <details class="table"><summary>View as table</summary><div></div></details>

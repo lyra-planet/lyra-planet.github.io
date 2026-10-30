@@ -110,12 +110,21 @@
   const iso = (d) => d.toISOString().slice(0, 10);
   const label = (s) => new Date(s + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "2-digit", timeZone: "UTC" });
 
+  // the numbers baked in at build time draw at once; the live file then replaces them without counting up again
+  let data = null;
+  const seed = box.querySelector(".usage-seed");
+  if (seed) try { data = JSON.parse(seed.textContent); kpis(data, true); table(data); chart(data); } catch (e) { data = null; }
+  addEventListener("resize", () => data && chart(data));
   fetch(box.dataset.src, { cache: "no-cache" })
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then((u) => { kpis(u); table(u); chart(u); addEventListener("resize", () => chart(u)); })
-    .catch(() => { box.querySelector(".kpis").innerHTML = '<p class="note">Live numbers could not be loaded right now.</p>'; });
+    .then((u) => {
+      const fresh = !data;
+      if (!fresh && u.generated_at === data.generated_at) return;
+      data = u; kpis(u, fresh); table(u); chart(u);
+    })
+    .catch(() => { if (!data) box.querySelector(".kpis").innerHTML = '<p class="note">Live numbers could not be loaded right now.</p>'; });
 
-  function kpis(u) {
+  function kpis(u, countUp) {
     const t = u.totals;
     const cells = [
       ["hero-kpi", t.total, (v) => fmt(v), `tokens since ${label(u.days[0].date)}`],
@@ -127,7 +136,7 @@
     const el = box.querySelector(".kpis");
     el.innerHTML = cells.map(([c, v, f, l]) => `<div class="kpi ${c}"><b>${f(v)}</b><span>${l}</span></div>`).join("");
     const bs = el.querySelectorAll("b");
-    onReveal(el, () => tween(1600, (k) => cells.forEach(([, v, f], i) => { bs[i].textContent = f(v * k); })));
+    if (countUp) onReveal(el, () => tween(1600, (k) => cells.forEach(([, v, f], i) => { bs[i].textContent = f(v * k); })));
   }
 
   function table(u) {

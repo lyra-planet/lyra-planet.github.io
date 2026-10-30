@@ -51,10 +51,7 @@
   // place with the page colour and is drawn where it went. Nothing moved, nothing drawn, scrolling included.
   const field = document.querySelector(".field");
   if (field) {
-    const grid = document.createElement("div");
-    grid.className = "grid";
-    grid.setAttribute("aria-hidden", "true");
-    document.body.prepend(grid);
+    const grid = document.querySelector(".grid") || document.body.appendChild(Object.assign(document.createElement("div"), { className: "grid" }));
     const ctx = field.getContext("2d"), G = 22, R = 120;
     const live = new Map();                      // only displaced dots carry state, keyed by grid cell in page coordinates
     const key = (c, r) => r * 4096 + c;

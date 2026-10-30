@@ -134,8 +134,10 @@
         walls.button.centre = () => ({ x: box.bl + w / 2, y: box.bt + h / 2 });
       }
       Composite.add(engine.world, Object.values(walls));
-      let y = -H - 10, x = 0;
-      bodies = items.map((it) => {               // they rain in from just above the window, a few side by side per row
+      // Placed in loose rows just above the floor and settled out of sight, then faded in: raining them in from
+      // above the window on every load swept 22 chips across the first view while it was still building (1030)
+      let y = -16, x = 0;
+      bodies = items.map((it) => {
         if (x + it.w > W) { x = 0; y -= it.h + 10; }
         const cx = x + it.w / 2 + Math.random() * 12;
         x += it.w + 24 + Math.random() * 40;
@@ -148,8 +150,26 @@
         return it.body;
       });
       Composite.add(engine.world, bodies);
-      run();
+      layer.classList.add("settling");
+      settle().then(() => {
+        for (const b of bodies) b.px = undefined;  // no interpolation from the fast-forward
+        items.forEach((it) => (it.drawn = false));
+        sync();
+        layer.classList.remove("settling");
+        run();
+      });
     };
+    // run the world ahead, 30 steps a frame (a few ms), until the pile sleeps; nothing is drawn meanwhile
+    const settle = () => new Promise((done) => {
+      let n = 0;
+      const chunk = () => {
+        for (let i = 0; i < 30 && n < 420; i++, n++) M.Engine.update(engine, STEP);
+        lid(); rescue();
+        if (n >= 420 || (ceiling && bodies.every((b) => b.isSleeping))) return done();
+        requestAnimationFrame(chunk);
+      };
+      chunk();
+    });
 
     // the lid (the window's top edge) goes on once every chip has fallen in; after 4 s, stragglers are dropped back inside
     const lid = () => {
@@ -268,8 +288,8 @@
     addEventListener("click", (e) => { if (lastPointer !== "mouse" && e.detail) nearby(e); }, { passive: true });
 
     const start = () => Promise.all([load(), document.fonts && document.fonts.ready]).then(build).catch(() => {});
-    if (document.readyState === "complete") setTimeout(start, 600);
-    else addEventListener("load", () => setTimeout(start, 600), { once: true });
+    if (document.readyState === "complete") setTimeout(start, 900);
+    else addEventListener("load", () => setTimeout(start, 900), { once: true });   // after the hero's entrance has mostly run
     document.addEventListener("visibilitychange", () => run());
     addEventListener("scroll", () => run(), { passive: true });
     addEventListener("resize", () => {
@@ -451,7 +471,11 @@
     requestAnimationFrame(home);
   }
 
-  if (gbtn) gbtn.addEventListener("click", (e) => { e.stopPropagation(); G ? gravityOff() : gravityOn().catch(() => {}); });
+  if (gbtn) {
+    gbtn.addEventListener("click", (e) => { e.stopPropagation(); gbtn.classList.add("idle"); G ? gravityOff() : gravityOn().catch(() => {}); });
+    // its falling square plays three times, then rests (cutting it off by a timer made the button jump a pixel)
+    gbtn.querySelector("i")?.addEventListener("animationend", () => gbtn.classList.add("idle"));
+  }
 
   // ---------- tilt ----------
   // Android sends orientation events right away; iOS sends nothing until the page asks, which needs a tap: the

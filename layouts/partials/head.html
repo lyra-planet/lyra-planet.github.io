@@ -12,6 +12,14 @@
 <meta name="theme-color" content="#1f1e1d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141413'/%3E%3Crect x='3' y='3' width='4' height='4' fill='%23d97757'/%3E%3Crect x='9' y='3' width='4' height='4' fill='%232a78d6'/%3E%3Crect x='3' y='9' width='4' height='4' fill='%232a78d6'/%3E%3Crect x='9' y='9' width='4' height='4' fill='%23d97757'/%3E%3C/svg%3E">
 {{ with .OutputFormats.Get "rss" }}<link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ .RelPermalink }}">{{ end }}
-<link rel="preload" href="{{ "fonts/Newsreader-normal-300-700.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+{{ range slice "Newsreader-normal-300-700" "Newsreader-italic-300-700" "IBMPlexMono-normal-400" "IBMPlexMono-normal-500" }}<link rel="preload" href="{{ printf "fonts/%s.woff2" . | relURL }}" as="font" type="font/woff2" crossorigin>
+{{ end }}
 {{ with resources.Get "css/site.css" | fingerprint }}<link rel="stylesheet" href="{{ .RelPermalink }}">{{ end }}
-<script>document.documentElement.classList.add("js");try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script>var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("theme");if(t)d.dataset.theme=t}catch(e){}
+{{- if .IsHome }}
+/* the physics look from the first frame (the same test physics.js makes), so nothing switches when it runs;
+   and the first view waits up to 1 s for its fonts, so it never shows a fallback face and then swaps */
+if(!matchMedia("(prefers-reduced-motion: reduce)").matches)d.classList.add("physics");
+if(document.fonts&&document.fonts.load){d.classList.add("fonts-wait");var f=function(){d.classList.remove("fonts-wait")};
+Promise.all(["500 1em Newsreader","italic 500 1em Newsreader","400 1em 'IBM Plex Mono'","500 1em 'IBM Plex Mono'"].map(function(x){return document.fonts.load(x)})).then(f,f);setTimeout(f,1000)}
+{{- end }}</script>
