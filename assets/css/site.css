@@ -85,6 +85,9 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
 .hero-art img { display: block; width: 100%; }
 .hero-art figcaption { font: 12px var(--mono); color: var(--muted); margin-top: 6px; text-align: right; }
 .only-dark { display: none !important; }
+/* theme switch (site.js): the new page is revealed in a growing circle over a still picture of the old one */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.theming *, .theming *::before, .theming *::after { transition: none !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .only-dark { display: block !important; } :root:not([data-theme="light"]) .only-light { display: none !important; } }
 :root[data-theme="dark"] .only-dark { display: block !important; } :root[data-theme="dark"] .only-light { display: none !important; }
 

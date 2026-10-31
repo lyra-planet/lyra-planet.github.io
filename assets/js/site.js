@@ -3,15 +3,27 @@
   const root = document.documentElement;
   const dark = () => (root.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
 
-  document.querySelector(".theme")?.addEventListener("click", () => {
+  // The new theme spreads from the button in a circle (a view transition: the old page is a still picture underneath),
+  // instead of every colour on the page cutting over in one frame. Without view transitions, or with reduced motion,
+  // it switches at once. "themechange" tells the canvases to repaint once the new colours are in.
+  const theme = document.querySelector(".theme");
+  theme?.addEventListener("click", () => {
     const next = dark() ? "light" : "dark";
-    root.dataset.theme = next;
-    try { localStorage.setItem("theme", next); } catch (e) { /* private mode: ignore */ }
+    const flip = () => {
+      root.dataset.theme = next;
+      try { localStorage.setItem("theme", next); } catch (e) { /* private mode: ignore */ }
+      document.dispatchEvent(new Event("themechange"));
+    };
+    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return flip();
+    const r = theme.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const reach = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    root.classList.add("theming");                 // colour transitions off: the circle is the transition
+    const vt = document.startViewTransition(flip);
+    vt.ready.then(() => root.animate({ clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${reach}px at ${x}px ${y}px)`] },
+      { duration: 550, easing: "cubic-bezier(.4, 0, .2, 1)", pseudoElement: "::view-transition-new(root)" })).catch(() => {});
+    vt.finished.finally(() => root.classList.remove("theming"));
   });
   document.querySelector(".print")?.addEventListener("click", () => window.print());
-  // the hidden theme's planet is lazy, so the first load skips it; fetch it once the page has settled, so a theme
-  // switch never shows an empty frame
-  addEventListener("load", () => setTimeout(() => document.querySelectorAll(".hero-art img").forEach((i) => { i.loading = "eager"; }), 3000), { once: true });
 
   // ---- frame meter: add #fps to the address; frames per second and the slowest frame of the last second ----
   if (/fps/.test(location.hash)) {

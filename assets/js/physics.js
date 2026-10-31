@@ -38,7 +38,7 @@
     return () => { if (!on) { on = true; last = performance.now(); requestAnimationFrame(tick); } };
   };
   const onTheme = (f) => {
-    document.querySelector(".theme")?.addEventListener("click", () => requestAnimationFrame(f));   // after site.js flips data-theme
+    document.addEventListener("themechange", f);   // site.js, once data-theme has flipped
     matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", f);
   };
   const once = (el, f, margin = "0px 0px -10% 0px") =>
