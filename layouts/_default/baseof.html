@@ -2,9 +2,13 @@
 <html lang="{{ site.LanguageCode }}">
 <head>{{ partial "head.html" . }}</head>
 <body class="{{ .Kind }} {{ .Type }}">
+  <div class="progress" aria-hidden="true"><i></i></div>
+  <div class="grid" aria-hidden="true"></div>
+  <canvas class="field" aria-hidden="true"></canvas>
   {{ partial "nav.html" . }}
   <main class="wrap">{{ block "main" . }}{{ end }}</main>
   {{ partial "footer.html" . }}
-  {{ with resources.Get "js/site.js" | fingerprint }}<script src="{{ .RelPermalink }}" defer></script>{{ end }}
+  <button class="grav" type="button" aria-pressed="false" data-engine="{{ "js/vendor/matter-0.20.0.min.js" | relURL }}" title="Let everything on screen fall. Press again or Esc to put it back."><i aria-hidden="true"></i><span>gravity</span></button>
+  {{ range slice "js/site.js" "js/physics.js" "js/bodies.js" }}{{ with resources.Get . | fingerprint }}<script src="{{ .RelPermalink }}" defer></script>{{ end }}{{ end }}
 </body>
 </html>

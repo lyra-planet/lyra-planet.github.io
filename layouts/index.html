@@ -1,8 +1,5 @@
 {{ define "main" }}
 {{ $cv := site.Data.cv }}
-<div class="progress" aria-hidden="true"><i></i></div>
-<div class="grid" aria-hidden="true"></div>
-<canvas class="field" aria-hidden="true"></canvas>
 
 <section class="hero">
   <div class="hero-text">
@@ -121,11 +118,9 @@
   <ul class="postlist">
     {{ range $i, $p := first 3 (where site.RegularPages "Section" "posts") }}
     <li class="stagger" style="--i:{{ $i }}"><time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "Jan 02, 2006" }}</time>
-      <div><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a><p>{{ $p.Params.lede | default $p.Summary }}</p></div></li>
+      <div><a href="{{ $p.RelPermalink }}" style="view-transition-name: {{ partial "vt-name.html" $p }}">{{ $p.Title }}</a><p>{{ $p.Params.lede | default $p.Summary }}</p></div></li>
     {{ end }}
   </ul>
   <p class="more"><a href="{{ (site.GetPage "/posts").RelPermalink }}">All writing →</a> &nbsp; <a href="{{ (site.GetPage "/cv").RelPermalink }}">Full CV →</a></p>
 </section>
-<button class="grav" type="button" aria-pressed="false" data-engine="{{ "js/vendor/matter-0.20.0.min.js" | relURL }}" title="Let everything on screen fall. Press again or Esc to put it back."><i aria-hidden="true"></i><span>gravity</span></button>
-{{ range slice "js/physics.js" "js/bodies.js" }}{{ with resources.Get . | fingerprint }}<script src="{{ .RelPermalink }}" defer></script>{{ end }}{{ end }}
 {{ end }}

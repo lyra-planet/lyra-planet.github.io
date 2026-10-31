@@ -85,8 +85,22 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
 .hero-art img { display: block; width: 100%; }
 .hero-art figcaption { font: 12px var(--mono); color: var(--muted); margin-top: 6px; text-align: right; }
 .only-dark { display: none !important; }
-/* theme switch (site.js): the new page is revealed in a growing circle over a still picture of the old one */
-::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* moving between pages (a cross-document view transition): the nav, the progress bar and the gravity button stay put,
+   the page fades through, a post's title morphs between a list and its own page, and each page then plays its entrance */
+@view-transition { navigation: auto; }
+.nav { view-transition-name: nav; }
+.progress { view-transition-name: progress; }
+.grav { view-transition-name: grav; }
+::view-transition-old(root) { animation: page-out .2s ease both; }
+::view-transition-new(root) { animation: page-in .3s ease .06s both; }
+@keyframes page-out { to { opacity: 0; } }
+@keyframes page-in { from { opacity: 0; } }
+::view-transition-group(*) { animation-duration: .5s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+.postlist a { display: inline-block; }   /* a title broken across lines can't be captured, and the transition would be skipped */
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* theme switch (site.js): only a circle growing from the button over a still picture of the old page */
+.theming::view-transition-old(root), .theming::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.theming * { view-transition-name: none !important; }
 .theming *, .theming *::before, .theming *::after { transition: none !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .only-dark { display: block !important; } :root:not([data-theme="light"]) .only-light { display: none !important; } }
 :root[data-theme="dark"] .only-dark { display: block !important; } :root[data-theme="dark"] .only-light { display: none !important; }
@@ -229,6 +243,13 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .title { font-size: clamp(76px, 13vw, 148px); line-height: .9; margin: 0; letter-spacing: -.035em; }
 .title span { display: inline-block; }
 .js:not(.played) .title span { animation: letter .9s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 70ms + 100ms); }
+/* a post's title, letter by letter (single.html); words stay whole when the line wraps */
+.spell .w { display: inline-block; white-space: nowrap; }
+.spell .ch { display: inline-block; }
+.js:not(.played):not(.morphed) .spell .ch { animation: letter .8s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 22ms + 80ms); }
+/* the first paragraphs rise with the header; the rest rise as they scroll in (site.js marks them .reveal) */
+.js:not(.played) .prose > :nth-child(-n+3) { animation: rise .8s cubic-bezier(.2,.8,.2,1) backwards; }
+.js:not(.played) .prose > :nth-child(1) { animation-delay: 560ms; } .js:not(.played) .prose > :nth-child(2) { animation-delay: 650ms; } .js:not(.played) .prose > :nth-child(3) { animation-delay: 740ms; }
 @keyframes letter { from { opacity: 0; transform: translateY(.35em) rotate(6deg); filter: blur(8px); } }
 .js:not(.played) .rise { animation: rise .8s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--d) * 90ms + 200ms); }
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
@@ -316,7 +337,7 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
 .heap.grabbing, .heap.grabbing li { cursor: grabbing; }
 .physics .stack { display: none; }
 @media (pointer: coarse) { .heap .stage li { touch-action: pan-y; font-size: 12px; padding: 5px 11px; } }   /* a vertical swipe on a chip still scrolls the page */
-@media print { .heap, .grav, .field, .grid { display: none; } }
+@media print { .heap, .grav, .field, .grid { display: none; } .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1 !important; transform: none !important; transition: none !important; } }   /* a CV printed from the top: sections not scrolled to yet still print */
 .boom { position: absolute; width: 0; height: 0; border: 2px solid var(--clay); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); animation: boom .55s ease-out forwards; }
 @keyframes boom { to { width: 300px; height: 300px; opacity: 0; } }
 @media (pointer: coarse) { .stage li { font-size: 12.5px; padding: 6px 12px; } }
@@ -335,8 +356,8 @@ body.home::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 
   mask: radial-gradient(60% calc(var(--gh, 800px) * .525) at 75% calc(var(--gh, 800px) * .25), #000, transparent); }
 
 .physics body.home::before { display: none; }
-.physics .title span { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
-.physics .title span.held { cursor: grabbing; }
+.physics :is(.title span, .spell .ch) { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.physics :is(.title span, .spell .ch).held { cursor: grabbing; }
 
 /* springs, pixels, string (physics.js) */
 .spring { transition-property: border-color, box-shadow, background-color, color !important; }
@@ -411,7 +432,7 @@ html.lenis, html.lenis body { height: auto; }
 }
 @media (max-width: 480px) { .hl b { font-size: 36px; } .hl { padding: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  body.home::before, .js .title span, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none !important; }
+  body.home::before, .js .title span, .js .spell .ch, .js .prose > *, .js .rise, .caret, .live::after, .js .reveal.in .stagger, .band svg.grow .bar { animation: none !important; }
   .js .reveal, .timeline::before, .hero-art img { transition: none; }
   .js .reveal:not(.in), .js .reveal:not(.in) .stagger { opacity: 1; transform: none; }
 }

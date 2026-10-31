@@ -1,16 +1,16 @@
 {{ define "main" }}
 <header class="page-head">
-  <p class="kicker">{{ if eq .Kind "term" }}tag{{ else }}~/posts{{ end }}</p>
-  <h1>{{ if eq .Kind "term" }}#{{ .Title }}{{ else }}{{ .Title | default "Writing" }}{{ end }}</h1>
-  {{ with .Content }}<div class="lede">{{ . }}</div>{{ end }}
+  <p class="kicker rise" style="--d:0">{{ if eq .Kind "term" }}tag{{ else }}~/posts{{ end }}</p>
+  <h1 class="rise" style="--d:1">{{ if eq .Kind "term" }}#{{ .Title }}{{ else }}{{ .Title | default "Writing" }}{{ end }}</h1>
+  {{ with .Content }}<div class="lede rise" style="--d:2">{{ . }}</div>{{ end }}
 </header>
 {{ range .Pages.GroupByDate "2006" }}
-<section class="year">
+<section class="year reveal">
   <h2 class="label">// {{ .Key }}</h2>
   <ul class="postlist">
-    {{ range .Pages }}
-    <li><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 02" }}</time>
-      <div><a href="{{ .RelPermalink }}">{{ .Title }}</a><p>{{ .Params.lede | default .Summary }}</p></div></li>
+    {{ range $i, $p := .Pages }}
+    <li class="stagger" style="--i:{{ $i }}"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 02" }}</time>
+      <div><a href="{{ .RelPermalink }}" style="view-transition-name: {{ partial "vt-name.html" . }}">{{ .Title }}</a><p>{{ .Params.lede | default .Summary }}</p></div></li>
     {{ end }}
   </ul>
 </section>

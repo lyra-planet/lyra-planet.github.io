@@ -176,7 +176,7 @@
   }
 
   // ---------- letters ----------
-  const letters = [...document.querySelectorAll(".title span")].map((el) => ({ el, x: 0, y: 0, vx: 0, vy: 0, drag: null }));
+  const letters = [...document.querySelectorAll(".title span, .spell .ch")].map((el) => ({ el, x: 0, y: 0, vx: 0, vy: 0, drag: null }));
   if (letters.length) {
     const rubber = (v) => Math.sign(v) * 260 * (1 - Math.exp(-Math.abs(v) / 260));   // pulling harder gives less
     const step = (dt) => {
@@ -235,8 +235,8 @@
   // ---------- springs ----------
   // channels: rotateX, rotateY (deg), lift (px), scale
   const springs = [
-    ...[...document.querySelectorAll(".hl, .card, .honor, .paper, .badges li, .hero-art")].map((el) => [el, true]),
-    ...[...document.querySelectorAll(".btn, .theme")].map((el) => [el, false]),
+    ...[...document.querySelectorAll(".hl, .card, .honor, .paper, .badges li, .hero-art, .postlist li, .chip, .toc, .prose img")].map((el) => [el, true]),
+    ...[...document.querySelectorAll(".btn, .theme, .pager a")].map((el) => [el, false]),
   ].map(([el, tilt]) => {
     el.classList.add("spring");
     return { el, tilt, p: [0, 0, 0, 1], v: [0, 0, 0, 0], t: [0, 0, 0, 1] };
@@ -449,7 +449,8 @@
   //   skew    the content leans with scroll speed and eases back
   //   none    blocks stay put;   and a separate switch for the smooth wheel (off by default)
   // Offsets go in the `translate` property, which stacks with the `transform` that hover tilt and gravity write.
-  const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .postlist li, .more";
+  const SCROLLY = ".kicker, .title, .lede, .badges li, .cta .btn, .hero-art, .band, .label, .hl, .timeline, .card, .paper, .aside, .oss li, .honor, .postlist li, .more,"
+    + " .post header > *, .prose > *, .toc, .pager, .page-head > *, .cv-head, .entry, .skills > div, .honors li";
   const blocks = [...document.querySelectorAll(SCROLLY)].filter((el, _, all) => !all.some((o) => o !== el && o.contains(el)))
     .map((el) => ({ el, top: 0, h: 0, cx: 0, dist: 0, y: 0, v: 0, shown: false }));
   const sections = [...document.querySelectorAll("main > section")];
@@ -464,7 +465,9 @@
     const MAXY = 48, TAU_EDGE = 0.035, TAU_V = 0.12;   // grid: lag in s at the content's edge (0 in its middle); speed smoothing in s
     const OMEGA = (2 * Math.PI * 1.6) / 60, ZETA = 0.85;   // bubble spring, per 60 fps frame
     let lenis = null, raf = 0, lastT = 0, last = SY, frozen = false, anchor = null, anchorX = null, skew = 0, vs = 0, skewShown = false, shown = 0, ds = 0;
-    const clear = (b) => { b.el.style.translate = ""; b.y = b.v = 0; b.shown = false; };
+    // a block gets its own layer only while it moves: a long post has dozens of paragraphs, and a layer each for good
+    // would hold tens of MB (the home page's blocks keep theirs in the stylesheet)
+    const clear = (b) => { b.el.style.translate = b.el.style.willChange = ""; b.y = b.v = 0; b.shown = false; };
     const clearSkew = () => { if (skewShown) sections.forEach((s) => (s.style.transform = "")); skewShown = false; };
     const place = () => {                         // page positions, read once and on resize; translate never moves layout
       for (const b of blocks) clear(b);
@@ -537,7 +540,7 @@
           }
           const moving = Math.abs(b.y) > 0.05 || Math.abs(b.v) > 0.02;
           live ||= moving;
-          if (moving) { b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; shown++; }
+          if (moving) { if (!b.shown) b.el.style.willChange = "transform"; b.el.style.translate = `0 ${b.y.toFixed(1)}px`; b.shown = true; shown++; }
           else if (b.shown) clear(b);
         }
       } else if (mode !== "grid" && mode !== "bubble" && shown) { for (const b of blocks) if (b.shown) clear(b); shown = 0; }

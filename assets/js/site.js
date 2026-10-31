@@ -65,7 +65,15 @@
     if (!sec || !io || sec.classList.contains("in")) return f();
     (sec._cbs ||= []).push(f);
   };
+  // a post's paragraphs below the first screen rise in as they scroll into view (the first few rise with the header)
+  for (const el of document.querySelectorAll(".prose > :nth-child(n+4)")) if (el.getBoundingClientRect().top > innerHeight) el.classList.add("reveal");
   document.querySelectorAll(".reveal").forEach((el) => io ? io.observe(el) : el.classList.add("in"));
+  // a post link morphs into the post's title on the next page (a view transition): leave a note so its letters don't
+  // also drop in (the head script reads it)
+  if ("onpagereveal" in window) addEventListener("click", (e) => {
+    const a = e.target.closest?.('a[style*="view-transition-name"]');
+    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey) try { sessionStorage.setItem("morph", new URL(a.href).pathname); } catch (err) { /* private mode */ }
+  });
   // the hero's entrance (letters, rises, growing bars) is over by ~3 s: mark it, so nothing can replay it
   addEventListener("load", () => setTimeout(() => root.classList.add("played"), 3200), { once: true });
 

@@ -3,18 +3,18 @@
 <article class="cv">
   <header class="cv-head">
     <div>
-      <p class="kicker">curriculum vitae · aka {{ $cv.handle }}</p>
-      <h1>{{ $cv.name }} <span class="zh" lang="zh">{{ $cv.name_zh }}</span></h1>
-      <p class="lede">{{ $cv.headline }}</p>
-      <p class="contacts">{{ range $cv.contacts }}<a href="{{ .url }}">{{ .label }}</a>{{ end }}</p>
+      <p class="kicker rise" style="--d:0">curriculum vitae · aka {{ $cv.handle }}</p>
+      <h1 class="rise" style="--d:1">{{ $cv.name }} <span class="zh" lang="zh">{{ $cv.name_zh }}</span></h1>
+      <p class="lede rise" style="--d:2">{{ $cv.headline }}</p>
+      <p class="contacts rise" style="--d:3">{{ range $cv.contacts }}<a href="{{ .url }}">{{ .label }}</a>{{ end }}</p>
     </div>
-    <p class="cv-actions"><a href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a><button class="btn ghost print" type="button">Save as PDF</button></p>
+    <p class="cv-actions rise" style="--d:3"><a href="{{ (site.GetPage "/posts").RelPermalink }}">Writing</a><button class="btn ghost print" type="button">Save as PDF</button></p>
   </header>
 
-  <section><h2 class="label">// education</h2>{{ range $cv.education }}{{ partial "cv-entry.html" . }}{{ end }}</section>
-  <section><h2 class="label">// experience</h2>{{ range $cv.experience }}{{ partial "cv-entry.html" . }}{{ end }}</section>
+  <section class="reveal"><h2 class="label">// education</h2>{{ range $cv.education }}{{ partial "cv-entry.html" . }}{{ end }}</section>
+  <section class="reveal"><h2 class="label">// experience</h2>{{ range $cv.experience }}{{ partial "cv-entry.html" . }}{{ end }}</section>
 
-  <section><h2 class="label">// publications</h2>
+  <section class="reveal"><h2 class="label">// publications</h2>
     {{ range $cv.publications }}
     <div class="entry"><div class="when">{{ .venue | replaceRE ".*, " "" }}</div><div>
       <h3 class="title">{{ .title }}</h3>
@@ -26,14 +26,14 @@
     {{ with $cv.research_note }}<div class="entry"><div class="when"></div><div><p class="sub">{{ . }}</p></div></div>{{ end }}
   </section>
 
-  <section><h2 class="label">// projects</h2>{{ range $cv.projects }}{{ partial "cv-entry.html" . }}{{ end }}</section>
-  <section><h2 class="label">// open source</h2>{{ range $cv.open_source }}{{ partial "cv-entry.html" . }}{{ end }}</section>
+  <section class="reveal"><h2 class="label">// projects</h2>{{ range $cv.projects }}{{ partial "cv-entry.html" . }}{{ end }}</section>
+  <section class="reveal"><h2 class="label">// open source</h2>{{ range $cv.open_source }}{{ partial "cv-entry.html" . }}{{ end }}</section>
 
-  <section><h2 class="label">// honors</h2>
+  <section class="reveal"><h2 class="label">// honors</h2>
     <ul class="honors">{{ range $cv.honors }}<li>{{ . }}</li>{{ end }}</ul>
   </section>
 
-  <section><h2 class="label">// skills</h2>
+  <section class="reveal"><h2 class="label">// skills</h2>
     <dl class="skills">{{ range $cv.skills }}<div><dt>{{ .area }}</dt><dd>{{ .items }}</dd></div>{{ end }}</dl>
   </section>
 </article>

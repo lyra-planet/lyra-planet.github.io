@@ -17,11 +17,15 @@
 {{ end }}
 {{ with resources.Get "css/site.css" | fingerprint }}<link rel="stylesheet" href="{{ .RelPermalink }}">{{ end }}
 <script>var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("theme");if(t)d.dataset.theme=t}catch(e){}
-{{- if .IsHome }}
 /* .physics turns the physics on (physics.js and bodies.js check it) and gives the page its look from the first frame,
-   so nothing switches when they run. Off under reduced motion, and on phones (touch screens with no hover): there the
-   page stays plain (1030). The first view waits up to 1 s for its fonts, so it never shows a fallback face and then swaps */
+   so nothing switches when they run. Every page; off under reduced motion, and on phones (touch screens with no hover):
+   there the page stays plain (1030) */
 if(!matchMedia("(prefers-reduced-motion: reduce), (hover: none) and (pointer: coarse)").matches)d.classList.add("physics");
+/* a post opened from a list arrives as its title morphing out of the link (site.js leaves this note on the click):
+   its letters don't drop in on top of that */
+try{if(sessionStorage.getItem("morph")===location.pathname)d.classList.add("morphed");sessionStorage.removeItem("morph")}catch(e){}
+{{- if .IsHome }}
+/* the first view waits up to 1 s for its fonts, so it never shows a fallback face and then swaps */
 if(document.fonts&&document.fonts.load){d.classList.add("fonts-wait");var f=function(){d.classList.remove("fonts-wait")};
 Promise.all(["500 1em Newsreader","400 1em 'IBM Plex Mono'","500 1em 'IBM Plex Mono'"].map(function(x){return document.fonts.load(x)})).then(f,f);setTimeout(f,1000)}
 {{- end }}</script>

@@ -1,0 +1,2 @@
+{{- /* a post's title carries the same view-transition name in every list and on its own page, so opening it morphs one into the other */ -}}
+{{- printf "t%s" (substr (md5 .RelPermalink) 0 8) -}}
