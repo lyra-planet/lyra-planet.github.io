@@ -90,7 +90,7 @@
 
   // ---------- stack: chips that live at the bottom of the window ----------
   // The whole window is the box: the floor is its bottom edge, the walls its sides. Resizing the window moves
-  // the walls, so the chips get pushed; scrolling moves the window over the page, so they feel the jolt.
+  // the walls, so the chips get pushed; a scroll jolts them (see inertia below).
   // Coordinates are measured up from the bottom edge (the floor is y = 0, the top of the window is y = -H) and
   // the chips are placed from the bottom in CSS, so when a phone's toolbar slides away and the window grows,
   // the pile rides the bottom edge at once instead of hanging in the air until a resize event moves the floor.
@@ -190,16 +190,18 @@
         M.Body.setVelocity(b, { x: 0, y: 0 });
       }
     };
-    // scrolling moves the window over the page: when it speeds up downward the chips feel lighter, and hop
+    // a scroll jolts the chips the way the page moves: a scroll up (the page moving down) throws them up, and so does a
+    // scroll down that stops short; a scroll down getting going presses them to the floor. (Until 1031 it was the
+    // other way round, the window as a lift riding down the page; the owner found that backwards.)
     const inertia = () => {
       const v = scrollSpeed(), a = v - sv;
       sv = v;
       if (Math.abs(a) < 1.5) return;
       for (const b of bodies) {
         M.Sleeping.set(b, false);
-        const vy = b.velocity.y - clamp(a, -40, 40) * 0.18;
+        const vy = b.velocity.y + clamp(a, -40, 40) * 0.18;
         // a jolt lifts a chip about 50 px at most: no lift for one already rising, so frames of jolt don't stack
-        M.Body.setVelocity(b, { x: b.velocity.x, y: a > 0 ? (b.velocity.y < -2 ? b.velocity.y : Math.max(vy, -7)) : vy });
+        M.Body.setVelocity(b, { x: b.velocity.x, y: a < 0 ? (b.velocity.y < -2 ? b.velocity.y : Math.max(vy, -7)) : vy });
       }
     };
     const sync = () => {
