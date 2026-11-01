@@ -113,6 +113,17 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em
 .tile .px { width: 40px; height: 40px; padding: 5px; }
 .tile h3 { font-size: 18px; margin: 0; } .tile p { margin: 2px 0 0; font: 12.5px/1.4 var(--mono); color: var(--muted); }
 .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.cards .wide { grid-column: 1 / -1; position: relative; }   /* the newest project: a whole row */
+.card .new { position: absolute; top: 20px; right: 20px; font: 500 11px/1 var(--mono); color: #faf9f5; background: var(--clay); padding: 5px 11px; border-radius: 99px; }
+.card .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; }
+/* a playable game inside a post: a picture and a button until someone wants it, so the post loads light */
+.play { position: relative; aspect-ratio: 16 / 9; margin: 28px 0 8px; border-radius: 14px; overflow: hidden; background: #0d0d0c; border: 1px solid var(--border); }
+.play img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
+.play button { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 500 15px var(--mono); color: #faf9f5; background: var(--clay);
+  border: 0; border-radius: 99px; padding: 12px 22px; cursor: pointer; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
+.play button:hover { background: var(--clay-text); }
+.play iframe { display: block; width: 100%; height: 100%; border: 0; }
+.play-note { margin: 0 0 24px; font: 12.5px var(--mono); color: var(--muted); }
 .card { display: block; padding: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; text-decoration: none; color: inherit; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
 .card:hover { transform: translateY(-3px); border-color: var(--clay); box-shadow: 0 16px 32px -24px rgba(20,20,19,.45); color: inherit; }
 .card-head { display: flex; gap: 16px; align-items: center; }

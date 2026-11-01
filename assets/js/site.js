@@ -24,6 +24,13 @@
     vt.finished.finally(() => root.classList.remove("theming"));
   });
   document.querySelector(".print")?.addEventListener("click", () => window.print());
+  // a game embedded in a post loads only when asked for
+  document.querySelectorAll(".play[data-src]").forEach((box) => box.querySelector("button")?.addEventListener("click", () => {
+    const f = document.createElement("iframe");
+    f.src = box.dataset.src; f.title = box.querySelector("img")?.alt || "game"; f.allow = "autoplay; fullscreen"; f.allowFullscreen = true;
+    box.replaceChildren(f);
+    f.focus();
+  }));
 
   // ---- frame meter: add #fps to the address; frames per second and the slowest frame of the last second ----
   if (/fps/.test(location.hash)) {

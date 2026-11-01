@@ -67,7 +67,11 @@
     {{ $inner := printf `<div class="card-head">%s<div><h3>%s</h3><p class="repo">%s</p></div></div><p>%s</p>` (partial "pixelicon.html" $p.icon) $p.name $p.sub $p.desc }}
     {{ $chips := "" }}{{ with $p.lang }}{{ $chips = printf `<span class="lang">%s</span>` . }}{{ end }}
     {{ range $p.topics }}{{ $chips = printf `%s<span class="chip">%s</span>` $chips . }}{{ end }}
-    {{ if $p.url }}<a class="card spot stagger" style="--i:{{ $i }}" href="{{ $p.url }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></a>
+    {{ if $p.wide }}{{/* a new project gets the whole row: play it, read the code, read the post */}}
+    <div class="card spot wide stagger" style="--i:{{ $i }}">{{ $inner | safeHTML }}<span class="new">new</span>
+      <p class="actions">{{ with $p.demo }}<a class="btn" href="{{ . }}">Play in the browser ↗</a>{{ end }}<a class="btn ghost" href="{{ $p.url }}">Source ↗</a>{{ with site.GetPage (printf "/posts/%s" (lower $p.name)) }}<a class="btn ghost" href="{{ .RelPermalink }}">Read the write-up →</a>{{ end }}</p>
+      <p class="chips">{{ $chips | safeHTML }}</p></div>
+    {{ else if $p.url }}<a class="card spot stagger" style="--i:{{ $i }}" href="{{ $p.url }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></a>
     {{ else }}<div class="card spot static stagger" style="--i:{{ $i }}">{{ $inner | safeHTML }}<p class="chips">{{ $chips | safeHTML }}</p></div>{{ end }}
     {{ end }}
   </div>

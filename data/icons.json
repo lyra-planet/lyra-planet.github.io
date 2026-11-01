@@ -83,6 +83,18 @@
   "..cCCCCc..",
   "...cccc..."
  ],
+ "vn": [
+  "..BBBBBB..",
+  ".BbbbbbbB.",
+  ".BwwwwwwB.",
+  ".BwkwwkwB.",
+  ".BwwwwwwB.",
+  "..wwccww..",
+  "CCCCCCCCCC",
+  "CppppppppC",
+  "CpkkkpkkpC",
+  "CCCCCCCCCC"
+ ],
  "frame": [
   "CCCCCCCCCC",
   "CppppppcpC",

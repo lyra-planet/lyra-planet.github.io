@@ -1,5 +1,21 @@
 [
  {
+  "name": "GalForge",
+  "icon": "vn",
+  "topics": [
+   "agent-skill",
+   "visual-novel",
+   "pixel-art",
+   "webaudio"
+  ],
+  "lang": "JavaScript",
+  "url": "https://github.com/lyra-planet/galforge",
+  "sub": "lyra-planet/galforge",
+  "wide": true,
+  "demo": "https://lyra-planet.github.io/galforge/",
+  "desc": "An Agent Skill that turns one sentence into a playable pixel-art visual novel. Sprites, scenes and music are all written as code, and every game must pass ten bundled checks, including an exhaustive ending solver."
+ },
+ {
   "name": "LyHarness",
   "icon": "terminal",
   "topics": [

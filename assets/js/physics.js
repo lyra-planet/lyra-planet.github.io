@@ -235,7 +235,7 @@
   // ---------- springs ----------
   // channels: rotateX, rotateY (deg), lift (px), scale
   const springs = [
-    ...[...document.querySelectorAll(".hl, .card, .honor, .paper, .badges li, .hero-art, .postlist li, .chip, .toc, .prose img")].map((el) => [el, true]),
+    ...[...document.querySelectorAll(".hl, .card, .honor, .paper, .badges li, .hero-art, .postlist li, .chip, .toc, .prose img:not(.play img)")].map((el) => [el, true]),
     ...[...document.querySelectorAll(".btn, .theme, .pager a")].map((el) => [el, false]),
   ].map(([el, tilt]) => {
     el.classList.add("spring");
