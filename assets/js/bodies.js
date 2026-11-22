@@ -298,7 +298,7 @@
   })();
 
   // ---------- gravity mode ----------
-  const PARTS = ".nav .brand, .nav nav > *, .kicker, .title span, .lede, .badges li, .cta .btn, .hero-art, .band-head p, .kpi, .band .chart, .band .table, .label, .hl,"
+  const PARTS = ".nav .brand, .nav nav > *, .kicker, .title span, .lede, .badges li, .cta .btn, .hero-art, .band-head p, .kpi, .band .sources, .band .chart, .band .table, .label, .hl,"
     + " .timeline li, .card, .paper, .aside, .oss li, .honor, .postlist li, .more, .foot p,"
     + " .spell .w, .chip, .toc, .prose > *, .pager a, .page-head h1, .cv-head h1, .contacts a, .cv-actions > *, .entry, .skills > div, .honors li";
   let G = null, homing = 0;

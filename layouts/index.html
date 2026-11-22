@@ -26,16 +26,17 @@
 
 <section id="numbers" class="band rise" style="--d:8">
   <div class="band-head">
-    <p><span class="live" aria-hidden="true"></span>lyra@planet ~ % <b>claude usage --daily</b></p>
-    <p class="band-note">live from my session logs · <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count</a></p>
+    <p><span class="live" aria-hidden="true"></span>lyra@planet ~ % <b>agents usage --daily</b></p>
+    <p class="band-note">Claude Code · Codex · Antigravity · <a href="{{ (site.GetPage "/posts/counting-claude-code-tokens").RelPermalink }}">how I count</a></p>
   </div>
   <div class="usage" data-src="{{ site.Params.usageJSON }}">
     {{- /* the numbers as of the build, so the band is filled from the first frame; the live file then updates it */}}
     {{- with try (resources.GetRemote site.Params.usageJSON) }}{{ with .Value }}<script type="application/json" class="usage-seed">{{ .Content | safeJS }}</script>{{ end }}{{ end }}
     <div class="kpis"></div>
-    <figure class="chart" aria-label="Claude Code tokens per day"><svg role="img"></svg><div class="tip" hidden></div></figure>
+    <div class="sources"></div>
+    <figure class="chart" aria-label="Coding agent tokens per day"><svg role="img"></svg><div class="tip" hidden></div></figure>
     <details class="table"><summary>View as table</summary><div></div></details>
-    <noscript><p class="note">The live chart needs JavaScript; the numbers are in <a href="https://github.com/{{ site.Params.github }}/{{ site.Params.github }}/blob/main/data/claude-code-usage.json">this JSON file</a>.</p></noscript>
+    <noscript><p class="note">The live chart needs JavaScript; the numbers are in <a href="https://github.com/{{ site.Params.github }}/{{ site.Params.github }}/blob/main/data/usage.json">this JSON file</a>.</p></noscript>
   </div>
 </section>
 

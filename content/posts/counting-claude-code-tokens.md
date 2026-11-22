@@ -51,4 +51,12 @@ Through October 28 the counter shows about 18.4 billion tokens across 65,329 API
 
 ## Publishing it
 
-A cron job on my dev machine runs the counter twice a day, renders the card on my profile and commits only the daily totals: no prompts, no code, no project names. Each file is cached by size and modification time, so after the first full scan (a little under two minutes) a run takes about a second.
+A cron job on my dev machine runs the counter every hour, renders the card on my profile and commits only the daily totals: no prompts, no code, no project names. Each file is cached by size and modification time, so incremental runs finish in seconds.
+
+## Update (November 22, 2026)
+
+The collector now combines **Claude Code**, **Codex**, and **Antigravity (`agy`)** into [`data/usage.json`](https://github.com/lyra-planet/lyra-planet/blob/main/data/usage.json):
+
+- **Codex**: tracks `turn_context.model`, takes strict deltas of `total_token_usage` to skip repeated status emissions and context-compaction estimates, uses `last_token_usage` on the first event of forked sessions so inherited parent totals are not double-counted, reads only the first `session_meta` so subagent files are not shadowed by copied parent headers, and splits OpenAI `input_tokens` into uncached input plus `cache_read`.
+- **Antigravity (`agy`)**: parses the `ModelUsageStats` protobuf message inside each conversation's `gen_metadata` SQLite table (`input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`), reads active WAL logs safely via read-only copies, and deduplicates by `message_id` / `response_id`.
+- **Retention**: deleted log entries stay archived in the local cache so 30-day transcript cleanup does not erode historical totals.

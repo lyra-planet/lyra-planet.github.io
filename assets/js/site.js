@@ -1,4 +1,4 @@
-// lyra-planet.github.io: theme toggle, CV print button, home-page motion, live Claude Code usage chart.
+// lyra-planet.github.io: theme toggle, CV print button, home-page motion, live coding agent usage chart.
 (() => {
   const root = document.documentElement;
   const dark = () => (root.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
@@ -156,6 +156,8 @@
     })
     .catch(() => { if (!data) box.querySelector(".kpis").innerHTML = '<p class="note">Live numbers could not be loaded right now.</p>'; });
 
+  const AGENTS = [["claude", "Claude Code", "Claude"], ["codex", "Codex", "Codex"], ["agy", "Antigravity", "Agy"]];
+
   function kpis(u, countUp) {
     const t = u.totals;
     const cells = [
@@ -169,13 +171,32 @@
     el.innerHTML = cells.map(([c, v, f, l]) => `<div class="kpi ${c}"><b>${f(v)}</b><span>${l}</span></div>`).join("");
     const bs = el.querySelectorAll("b");
     if (countUp) onReveal(el, () => tween(1600, (k) => cells.forEach(([, v, f], i) => { bs[i].textContent = f(v * k); })));
+    const srcEl = box.querySelector(".sources");
+    if (srcEl && u.sources) {
+      srcEl.innerHTML = AGENTS.filter(([k]) => u.sources[k]?.total).map(([k, full]) => {
+        const s = u.sources[k], pct = (100 * s.total / t.total).toFixed(s.total / t.total < 0.01 ? 2 : 1);
+        return `<span><b>${full}</b> ${fmt(s.total)} <em>(${pct}%)</em></span>`;
+      }).join("");
+    }
   }
 
   function table(u) {
-    const rows = [...u.days].reverse().map((d) =>
-      `<tr><td>${d.date}</td><td>${fmt(d.total)}</td><td>${fmt(d.output)}</td><td>${d.requests.toLocaleString("en-US")}</td><td>${d.sessions}</td></tr>`).join("");
-    box.querySelector(".table div").innerHTML =
-      `<table><thead><tr><th>Date</th><th>Total</th><th>Output</th><th>API calls</th><th>Sessions</th></tr></thead><tbody>${rows}</tbody></table>`;
+    let html = "";
+    if (u.sources) {
+      const srows = AGENTS.filter(([k]) => u.sources[k]).map(([k, full]) => {
+        const s = u.sources[k];
+        return `<tr><td>${full}</td><td>${fmt(s.total)}</td><td>${fmt(s.output)}</td><td>${fmt(s.cache_read)}</td><td>${s.requests.toLocaleString("en-US")}</td><td>${s.sessions.toLocaleString("en-US")}</td></tr>`;
+      }).join("");
+      const t = u.totals;
+      html += `<table><thead><tr><th>Agent</th><th>Total</th><th>Output</th><th>Cache read</th><th>API calls</th><th>Sessions</th></tr></thead><tbody>${srows}<tr><td><b>Total</b></td><td><b>${fmt(t.total)}</b></td><td><b>${fmt(t.output)}</b></td><td><b>${fmt(t.cache_read)}</b></td><td><b>${t.requests.toLocaleString("en-US")}</b></td><td><b>${t.sessions.toLocaleString("en-US")}</b></td></tr></tbody></table>`;
+    }
+    const rows = [...u.days].reverse().map((d) => {
+      const bs = d.by_source || {};
+      const cell = (k) => bs[k] ? fmt(bs[k]) : "—";
+      return `<tr><td>${d.date}</td><td>${fmt(d.total)}</td><td>${cell("claude")}</td><td>${cell("codex")}</td><td>${cell("agy")}</td><td>${fmt(d.output)}</td><td>${d.requests.toLocaleString("en-US")}</td><td>${d.sessions}</td></tr>`;
+    }).join("");
+    html += `<table><thead><tr><th>Date</th><th>Total</th><th>Claude</th><th>Codex</th><th>Agy</th><th>Output</th><th>API calls</th><th>Sessions</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.querySelector(".table div").innerHTML = html;
   }
 
   function niceTicks(v, target = 4) {
@@ -221,8 +242,9 @@
     const show = (i) => {
       const d = byDate[days[i]], cx = L + i * slot + slot / 2;
       cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
+      const split = d?.by_source ? AGENTS.filter(([k]) => d.by_source[k]).map(([k, , short]) => `${short} ${fmt(d.by_source[k])}`).join(" · ") : "";
       tip.innerHTML = d
-        ? `${label(days[i])}<br>${fmt(d.total)} tokens · ${fmt(d.output)} out<br>${d.requests.toLocaleString("en-US")} calls · ${d.sessions} sessions`
+        ? `${label(days[i])}<br>${fmt(d.total)} tokens · ${fmt(d.output)} out${split ? `<br>${split}` : ""}<br>${d.requests.toLocaleString("en-US")} calls · ${d.sessions} sessions`
         : `${label(days[i])}<br>no sessions`;
       tip.style.left = `${(cx / W) * 100}%`;
       tip.style.transform = cx > W * 0.75 ? "translate(-100%, -110%)" : cx < W * 0.2 ? "translate(0, -110%)" : "";   // 靠边就往里翻，别被裁掉
